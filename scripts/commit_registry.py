@@ -36,7 +36,7 @@ def main():
         "--drop-missing", "--out", str(target),
     ], check=True)
 
-    prefix = "metage_megahit2_update."
+    prefix = "metage_megahit_v2_88_1_taizhou."
     subprocess.run([
         sys.executable, str(project_dir / "scripts/scan_registry.py"),
         "--project-dir", inputs[prefix + "rawdatapath"],

@@ -99,7 +99,7 @@ for (i in 1: k){
 
           p1 <- ggplot(data = feature_s, aes(x=variable, y=value, fill=tax))+
             geom_bar(stat="identity", position="stack", width=0.8) +
-            theme_bw(base_family = 'Times New Roman',base_size = 16,base_line_size =0.3)+
+            metage_theme()+
             theme(panel.border = element_blank(),  #去外框
                   panel.grid = element_blank(),   #去网格
                   axis.line = element_line(linetype=1, color = 'black'), #加x,y轴
@@ -148,4 +148,5 @@ for (i in 1: k){
 }
 
 
+source('/root/microbiome/microbiome/metage_megahit/plot_theme_update.R')
 

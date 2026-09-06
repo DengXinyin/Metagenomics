@@ -11,6 +11,7 @@ from multiprocessing import Pool, cpu_count
 
 import pandas as pd
 from get_scriptspath_update import scripts_path, Rscript_j
+from subprocess_log_utils import run_commands_with_failure_log, run_with_failure_log
 
 logging.basicConfig(
     level=logging.INFO,
@@ -73,9 +74,11 @@ def run_lefse(task):
     cmd2 = ['run_lefse.py', infile, resfile]
 
     try:
-        with open(log_file, 'w') as lf:
-            subprocess.check_call(cmd1, stdout=lf, stderr=subprocess.STDOUT)
-            subprocess.check_call(cmd2, stdout=lf, stderr=subprocess.STDOUT)
+        run_commands_with_failure_log(
+            [cmd1, cmd2],
+            log_file,
+            stop_dir=os.path.dirname(os.path.dirname(log_dir)),
+        )
         return '%s done' % prefix
     except subprocess.CalledProcessError as e:
         log.error('LEfSe 失败 %s: %s', prefix, e)
@@ -204,8 +207,7 @@ def plot_lefse(func_diff, datadir, res_dir):
     log_file = os.path.join(log_dir, 'func_lefse.R.log')
     cmd = [Rscript_j, os.path.join(scripts_path, 'func_lefse_update.R'), func_diff, datadir, res_dir]
     log.info('运行 R 脚本: func_lefse_update.R')
-    with open(log_file, 'w') as lf:
-        subprocess.check_call(cmd, stdout=lf, stderr=subprocess.STDOUT)
+    run_with_failure_log(cmd, log_file, stop_dir=res_dir)
 
 
 def main():

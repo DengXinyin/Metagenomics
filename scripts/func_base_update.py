@@ -10,6 +10,7 @@ import subprocess
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from get_scriptspath_update import scripts_path, Rscript_j
+from subprocess_log_utils import run_with_failure_log
 
 logging.basicConfig(
     level=logging.INFO,
@@ -34,8 +35,7 @@ def plot_func(func_tmpdir, datadir, res_dir):
         log_file = os.path.join(log_dir, r_script.replace('.R', '.log'))
         cmd = [Rscript_j, os.path.join(scripts_path, r_script), func_tmpdir, datadir, res_dir]
         log.info('运行 R 脚本: %s', r_script)
-        with open(log_file, 'w') as lf:
-            subprocess.run(cmd, stdout=lf, stderr=subprocess.STDOUT, check=True)
+        run_with_failure_log(cmd, log_file, stop_dir=res_dir)
         return r_script
 
     errors = []

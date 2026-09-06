@@ -19,7 +19,15 @@ from scipy import stats
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
-from plot_style_config import apply_matplotlib_style, METAGE_PLOT_FONT
+from plot_style_config import (
+    apply_matplotlib_style,
+    get_text_kwargs,
+    group_color_map,
+    load_plot_style,
+    plotly_layout,
+    plotly_text_style,
+    text_is_visible,
+)
 
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
@@ -34,18 +42,8 @@ log = logging.getLogger(__name__)
 CLASSES = ['All', 'Archaea', 'bacteria', 'Fungi', 'Virus']
 INDEX_NAMES = ['Chao1', 'ACE', 'Shannon', 'Gini_simpson']
 
-apply_matplotlib_style(plt)
-# Alpha-diversity panels are intentionally two points smaller than the
-# workflow-wide typography defaults to leave room for multi-group brackets.
-plt.rcParams.update({
-    'font.size': 8,
-    'axes.titlesize': 18,
-    'axes.labelsize': 16,
-    'xtick.labelsize': 14,
-    'ytick.labelsize': 14,
-    'legend.fontsize': 16,
-    'legend.title_fontsize': 18,
-})
+PLOT_STYLE = load_plot_style(task_name='alpha_diversity')
+apply_matplotlib_style(plt, config=PLOT_STYLE)
 
 
 def _read_metadata(data_dir):
@@ -156,12 +154,13 @@ def _plot_alpha(diver, index, p_anova, pairs, pvals, resdir):
     os.makedirs(resdir, exist_ok=True)
     groups = diver['group'].unique().tolist()
     values = [diver.loc[diver['group'] == g, index].values for g in groups]
+    colors = group_color_map(PLOT_STYLE, groups)
 
     # matplotlib
     fig, ax = plt.subplots(figsize=(6, 4))
     bp = ax.boxplot(values, labels=groups, patch_artist=True)
-    for patch, color in zip(bp['boxes'], plt.cm.tab10.colors):
-        patch.set_facecolor(color)
+    for patch, group in zip(bp['boxes'], groups):
+        patch.set_facecolor(colors[group])
     ax.scatter(np.repeat(np.arange(1, len(groups) + 1), [len(v) for v in values]),
                np.concatenate(values), color='black', alpha=0.5, zorder=3)
 
@@ -181,11 +180,18 @@ def _plot_alpha(diver, index, p_anova, pairs, pvals, resdir):
                 txt = '*'
             else:
                 txt = f'p={p:.3f}'
-            ax.text((i1 + i2) / 2.0, y, txt, ha='center', va='bottom', fontsize=9)
+            if text_is_visible(PLOT_STYLE, 'data_label'):
+                label_style = get_text_kwargs(PLOT_STYLE, 'data_label')
+                label_style.pop('ha', None)
+                ax.text((i1 + i2) / 2.0, y, txt, ha='center', va='bottom',
+                        **label_style)
 
-    ax.set_title(f'ANOVA: p={p_anova:.4f}')
-    ax.set_ylabel(index)
-    ax.set_xlabel('')
+    if text_is_visible(PLOT_STYLE, 'title'):
+        title_style = get_text_kwargs(PLOT_STYLE, 'title')
+        ax.set_title(f'ANOVA: p={p_anova:.4f}', **title_style)
+    if text_is_visible(PLOT_STYLE, 'axis_title'):
+        ax.set_ylabel(index)
+        ax.set_xlabel('')
     plt.setp(ax.get_xticklabels(), rotation=45, ha='right')
     plt.tight_layout()
     fig.savefig(os.path.join(resdir, f'{index}.pdf'), format='pdf', bbox_inches='tight')
@@ -193,9 +199,9 @@ def _plot_alpha(diver, index, p_anova, pairs, pvals, resdir):
 
     # plotly
     figp = go.Figure()
-    for g, color in zip(groups, plt.cm.tab10.colors):
+    for g in groups:
         figp.add_trace(go.Box(y=diver.loc[diver['group'] == g, index].values, name=g,
-                              marker_color=f'rgb{tuple(int(c * 255) for c in color[:3])}',
+                              marker_color=colors[g],
                               boxpoints='all'))
     if pairs is not None and not pairs.empty:
         y_max = diver[index].max()
@@ -212,21 +218,33 @@ def _plot_alpha(diver, index, p_anova, pairs, pvals, resdir):
                 txt = '*'
             else:
                 txt = f'p={p:.3f}'
-            figp.add_annotation(x=(i1 + i2) / 2.0, y=y, text=txt, showarrow=False,
-                                font=dict(family=METAGE_PLOT_FONT, size=10))
+            if text_is_visible(PLOT_STYLE, 'data_label'):
+                figp.add_annotation(
+                    x=(i1 + i2) / 2.0, y=y, text=txt, showarrow=False,
+                    font=plotly_text_style(PLOT_STYLE, 'data_label'),
+                )
+    layout = plotly_layout(PLOT_STYLE)
     figp.update_layout(
         title=dict(
-            text=f'ANOVA: p={p_anova:.4f}',
-            x=0.5,
-            font=dict(family=METAGE_PLOT_FONT, size=18),
+            text=f'ANOVA: p={p_anova:.4f}' if text_is_visible(PLOT_STYLE, 'title') else '',
+            x={'left': 0, 'center': 0.5, 'right': 1}.get(
+                PLOT_STYLE['text']['title'].get('align', 'center'), 0.5
+            ),
+            font=plotly_text_style(PLOT_STYLE, 'title'),
         ),
-        font=dict(family=METAGE_PLOT_FONT, size=10),
+        font=layout['font'],
+        width=layout['width'],
+        height=layout['height'],
         yaxis=dict(
-            title=dict(text=index, font=dict(size=16)),
-            tickfont=dict(size=14),
+            title=dict(
+                text=index if text_is_visible(PLOT_STYLE, 'axis_title') else '',
+                font=plotly_text_style(PLOT_STYLE, 'axis_title'),
+            ),
+            tickfont=plotly_text_style(PLOT_STYLE, 'axis_text'),
         ),
-        xaxis=dict(showgrid=False, tickfont=dict(size=14)),
-        showlegend=False,
+        xaxis=dict(showgrid=False, tickfont=plotly_text_style(PLOT_STYLE, 'axis_text')),
+        showlegend=layout['showlegend'],
+        legend=layout['legend'],
         plot_bgcolor='white',
     )
     figp.write_html(os.path.join(resdir, f'{index}.html'), include_plotlyjs=True)

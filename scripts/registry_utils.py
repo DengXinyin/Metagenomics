@@ -145,7 +145,7 @@ def resolve_registry_path(registry_dir, project_no, project_name, customer_name)
     return registry_dir / filename
 
 
-def find_best_upstream_workflow(registry_tsv, project_root, workflow_name="metage_megahit2_update", required_calls=None):
+def find_best_upstream_workflow(registry_tsv, project_root, workflow_name="metage_megahit_v2_88_1_taizhou", required_calls=None):
     """
     自动匹配最近可用的上游 workflow ID。
 

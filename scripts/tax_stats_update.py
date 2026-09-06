@@ -9,6 +9,7 @@ import subprocess
 import logging
 
 import pandas as pd
+from subprocess_log_utils import run_with_failure_log
 
 logging.basicConfig(
     level=logging.INFO,
@@ -64,8 +65,11 @@ def krona(res_dir, anno_dir, datadir):
         with open(krona_sh, 'w', encoding='utf-8') as f:
             f.write(krona_cmd)
         log.info('生成 Krona 图: %s', res_grodir)
-        subprocess.run('bash %s >%s 2>&1' % (krona_sh, os.path.join(anno_dir, 'krona.log')),
-                       shell=True, check=True)
+        run_with_failure_log(
+            ['bash', krona_sh],
+            os.path.join(anno_dir, 'krona.log'),
+            stop_dir=anno_dir,
+        )
 
 
 def get_table(anno_dir, datadir, res_dir):

@@ -65,7 +65,7 @@ for (i in 1: k){
       p <- ggplot(df_plot,aes(x=x,y=y,fill=x))+
         stat_boxplot(geom = 'errorbar', width=0.3) +
         geom_boxplot() +
-        theme_bw(base_family = 'Times New Roman',base_size = 14,base_line_size =0.5)+
+        metage_theme()+
         theme(panel.grid = element_blank(),    #去网格
               legend.position = 'none',
               axis.title.x = element_blank(),
@@ -94,3 +94,4 @@ for (i in 1: k){
     }
   }
 }
+source('/root/microbiome/microbiome/metage_megahit/plot_theme_update.R')

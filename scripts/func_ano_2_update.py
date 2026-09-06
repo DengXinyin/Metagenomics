@@ -81,6 +81,19 @@ def annotate_KEGG(args_tuple):
     ko_map = pd.read_excel(os.path.join(mapdir, 'KEGG', 'KO_map.xlsx'))
     kegg_level = pd.read_csv(os.path.join(mapdir, 'KEGG', 'kegg_level.txt'), sep='\t')
 
+    # 保留 eggNOG-mapper 提供的 KEGG/基因功能注释。后续一条基因可能
+    # 对应多个 KO/pathway，因此这些 GeneID 级字段必须以 many-to-one
+    # 方式并入，避免意外放大结果行数。
+    kegg_info_cols = [
+        'GeneID', 'Description', 'Preferred_name', 'EC',
+        'KEGG_Pathway', 'KEGG_Module', 'KEGG_Reaction',
+        'KEGG_rclass', 'BRITE', 'KEGG_TC',
+    ]
+    available_kegg_info_cols = [c for c in kegg_info_cols if c in ano_all.columns]
+    gene_kegg_info = ano_all.loc[:, available_kegg_info_cols].copy()
+    if gene_kegg_info['GeneID'].duplicated().any():
+        raise ValueError('func.emapper.annotations 的 GeneID 存在重复，无法安全合并 KEGG 注释')
+
     ko = ano_all.loc[:, ['GeneID', 'KO']].copy()
     ko = ko[ko['KO'] != '-']
     ko['KO'] = ko['KO'].str.split(',')
@@ -91,19 +104,54 @@ def annotate_KEGG(args_tuple):
     ko_anno = pd.merge(left=ko_anno, right=kegg_level, on='level3_pathway_ID')
     ko_anno = ko_anno.drop(['ko_ID'], axis=1)
 
-    kegg_tpm = pd.merge(left=ko_anno, right=gene_tpm, on='GeneID')
+    # gene.taxonomy.csv 由同一 anno task 的 tax_ano_2_update.py 先生成。
+    # 报告只展示一列 taxonomy，不把 kingdom~species 拆成多列。
+    taxonomy_path = os.path.join(anno_dir, 'gene.taxonomy.csv')
+    gene_taxonomy = pd.read_csv(taxonomy_path, dtype=str)
+    if 'GeneID' not in gene_taxonomy.columns:
+        gene_taxonomy = gene_taxonomy.rename(columns={gene_taxonomy.columns[0]: 'GeneID'})
+    if gene_taxonomy['GeneID'].duplicated().any():
+        raise ValueError('gene.taxonomy.csv 的 GeneID 存在重复，无法安全合并 KEGG 注释')
+    taxonomy_cols = [c for c in gene_taxonomy.columns if c != 'GeneID']
+    gene_taxonomy['taxonomy'] = gene_taxonomy[taxonomy_cols].fillna('').apply(
+        lambda row: ';'.join(str(value) for value in row if str(value).strip()), axis=1
+    )
+    gene_taxonomy = gene_taxonomy.loc[:, ['GeneID', 'taxonomy']]
+
+    ko_anno = pd.merge(
+        ko_anno, gene_taxonomy, on='GeneID', how='left', validate='many_to_one'
+    )
+    ko_anno = pd.merge(
+        ko_anno, gene_kegg_info, on='GeneID', how='left', validate='many_to_one'
+    )
+
+    kegg_tpm = pd.merge(
+        left=ko_anno, right=gene_tpm, on='GeneID', validate='many_to_one'
+    )
+    sample_cols = [c for c in gene_tpm.columns if c != 'GeneID']
+    annotation_cols = [
+        'GeneID', 'taxonomy', 'KO', 'Description', 'Preferred_name', 'EC',
+        'KEGG_Pathway', 'KEGG_Module', 'KEGG_Reaction',
+        'KEGG_rclass', 'BRITE', 'KEGG_TC',
+        'level3_pathway_ID', 'level1_pathway_name',
+        'level2_pathway_name', 'level3_pathway_name',
+    ]
+    annotation_cols = [c for c in annotation_cols if c in kegg_tpm.columns]
+    kegg_tpm = kegg_tpm.loc[:, annotation_cols + sample_cols]
     kegg_tpm.to_csv(os.path.join(anno_dir, 'KEGG', 'KEGG.tpm.csv'), index=False, encoding='utf-8-sig')
 
-    kegg_l1 = pd.concat([kegg_tpm.iloc[:, 3], kegg_tpm.iloc[:, 6:]], axis=1)
-    kegg_l1 = kegg_l1.groupby('level1_pathway_name').sum()
+    kegg_l1 = kegg_tpm.loc[:, ['level1_pathway_name'] + sample_cols]
+    kegg_l1 = kegg_l1.groupby('level1_pathway_name')[sample_cols].sum()
     kegg_l1.to_excel(os.path.join(anno_dir, 'KEGG', 'level1.tpm.xlsx'), index=True)
 
-    kegg_l2 = pd.concat([kegg_tpm.iloc[:, 4], kegg_tpm.iloc[:, 6:]], axis=1)
-    kegg_l2 = kegg_l2.groupby('level2_pathway_name').sum()
+    kegg_l2 = kegg_tpm.loc[:, ['level2_pathway_name'] + sample_cols]
+    kegg_l2 = kegg_l2.groupby('level2_pathway_name')[sample_cols].sum()
     kegg_l2.to_excel(os.path.join(anno_dir, 'KEGG', 'level2.tpm.xlsx'), index=True)
 
-    kegg_l3 = pd.concat([kegg_tpm.iloc[:, [2, 5]], kegg_tpm.iloc[:, 6:]], axis=1)
-    kegg_l3 = kegg_l3.groupby(['level3_pathway_ID', 'level3_pathway_name']).sum()
+    kegg_l3 = kegg_tpm.loc[:, ['level3_pathway_ID', 'level3_pathway_name'] + sample_cols]
+    kegg_l3 = kegg_l3.groupby(
+        ['level3_pathway_ID', 'level3_pathway_name']
+    )[sample_cols].sum()
     kegg_l3.to_excel(os.path.join(anno_dir, 'KEGG', 'level3.tpm.xlsx'), index=True)
 
     log("  KEGG 注释完成")

@@ -22,7 +22,7 @@ from registry_utils import (  # noqa: E402
 )
 
 
-WORKFLOW_NAME = "metage_megahit2_update"
+WORKFLOW_NAME = "metage_megahit_v2_88_1_taizhou"
 INPUT_PREFIX = WORKFLOW_NAME + "."
 REQUIRED_OUTPUTS = (
     "call-kneaddata_no/execution/cleandata",
@@ -78,6 +78,34 @@ def read_samples(data_xlsx):
     if not samples:
         raise RuntimeError("data.xlsx 未读取到有效样本")
     return samples, id_col, display_col
+
+
+def read_project_identity_from_json(project_info_path):
+    """Read registry identity from tester-provided project_info.json."""
+    try:
+        identity = read_project_info(project_info_path)
+    except Exception as exc:
+        raise RuntimeError(f"无法读取 {project_info_path}: {exc}") from exc
+    missing = [key for key in ("project_no", "project_name", "customer_name")
+               if not str(identity.get(key, "")).strip()]
+    if missing:
+        raise RuntimeError(
+            "project_info.json 缺少项目身份字段: " + ", ".join(missing)
+        )
+    return identity
+
+
+def write_planner_project_info(path, identity):
+    """Create a planner-only project_info.json for legacy registry scanners."""
+    value = {
+        "项目编号": identity["project_no"],
+        "项目名称": identity["project_name"],
+        "客户名称": identity["customer_name"],
+    }
+    path.write_text(
+        json.dumps(value, ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
+    )
 
 
 def workflow_identity(workflow_dir):
@@ -176,10 +204,9 @@ def initialize_registry(target, source, parent_workflow, project_no, project_dir
         ]).to_csv(target, sep="\t", index=False)
 
 
-def scan_current_raw(target, inputs, project_dir):
+def scan_current_raw(target, inputs, project_dir, project_info):
     raw_dir = Path(input_value(inputs, "rawdatapath"))
     data_dir = Path(input_value(inputs, "datapath"))
-    project_info = Path(input_value(inputs, "project"))
     if not raw_dir.is_dir():
         print(f"警告：rawdatapath 不存在，仅 reuse 模式可继续: {raw_dir}", file=sys.stderr)
         return False
@@ -371,13 +398,15 @@ def main():
     with open(args.inputs, encoding="utf-8") as handle:
         inputs = json.load(handle)
 
-    project_info_path = Path(input_value(inputs, "project"))
-    identity = read_project_info(project_info_path)
-    if not all(identity.values()):
-        raise RuntimeError(f"项目身份三项必填: {identity}")
     data_dir = Path(input_value(inputs, "datapath")).resolve()
     data_xlsx = data_dir / "data.xlsx"
+    identity = read_project_identity_from_json(data_dir / "project_info.json")
     current_samples, id_col, display_col = read_samples(data_xlsx)
+    workflow_project_root = Path(
+        input_value(inputs, "project_root", str(data_dir.parent))
+    ).resolve()
+    planner_project_info = plan_dir / "project_info.json"
+    write_planner_project_info(planner_project_info, identity)
 
     registry_dir = project_dir / "cromwell-executions" / WORKFLOW_NAME / "registry"
     target_registry = resolve_registry_path(registry_dir, **identity)
@@ -390,7 +419,12 @@ def main():
     old_display, old_groups = registry_sample_metadata(source_registry)
     old_raw = old_raw_signatures(source_registry)
     initialize_registry(working_registry, source_registry, parent, identity["project_no"], project_dir)
-    scan_current_raw(working_registry, inputs, project_dir)
+    scan_current_raw(
+        working_registry,
+        inputs,
+        project_dir,
+        planner_project_info,
+    )
     sync_registry_samples(working_registry, current_samples, identity)
 
     completed = parent_samples(parent)
@@ -424,7 +458,8 @@ def main():
     if run_mode == "incremental":
         if not upstream_samples:
             raise RuntimeError("incremental 模式没有需要重跑上游的样本")
-        incremental_data = plan_dir / "incremental_data"
+        # WDL 固定读取 project_root/incremental_data，不向平台暴露该路径。
+        incremental_data = workflow_project_root / "incremental_data"
         prepare_incremental_data(data_dir, incremental_data, upstream_samples, id_col, display_col)
 
     md5 = hashlib.md5(working_registry.read_bytes()).hexdigest()
@@ -433,15 +468,19 @@ def main():
     prepared[INPUT_PREFIX + "isbwa"] = "yes" if run_mode == "full" else "no"
     prepared[INPUT_PREFIX + "Taskid"] = parent.name if parent else ""
     prepared[INPUT_PREFIX + "parent_workflow_dir"] = str(parent) if parent else ""
-    prepared[INPUT_PREFIX + "incremental_datapath"] = str(incremental_data) if incremental_data else None
-    prepared[INPUT_PREFIX + "sample_registry_tsv"] = str(working_registry)
-    prepared[INPUT_PREFIX + "registry_md5"] = md5
-    prepared[INPUT_PREFIX + "project_root"] = str(project_dir)
+    prepared[INPUT_PREFIX + "project_root"] = str(workflow_project_root)
     # registry 只在 Cromwell 成功后由 run_workflow.sh 提交，不在 WDL 内直接改写。
-    for optional_key in ("registry_tsv_path", "executions_root", "skip_workflows"):
+    for optional_key in (
+        "project",
+        "report_no",
+        "registry_tsv_path",
+        "executions_root",
+        "skip_workflows",
+        "incremental_datapath",
+        "sample_registry_tsv",
+        "registry_md5",
+    ):
         prepared.pop(INPUT_PREFIX + optional_key, None)
-    if prepared[INPUT_PREFIX + "incremental_datapath"] is None:
-        prepared.pop(INPUT_PREFIX + "incremental_datapath")
 
     plan = {
         "requested_mode": args.mode,

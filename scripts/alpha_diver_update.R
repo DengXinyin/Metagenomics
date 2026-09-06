@@ -178,7 +178,7 @@ for (g in seq_len(n_groups)) {
                         )
                     }
                 } +
-                theme_bw(base_family = font_family, base_size = 12) +
+                metage_theme() +
                 theme(
                     panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
                     axis.text.x = element_text(angle = 45, hjust = 1),
@@ -202,3 +202,4 @@ for (g in seq_len(n_groups)) {
         }
     }
 }
+source('/root/microbiome/microbiome/metage_megahit/plot_theme_update.R')

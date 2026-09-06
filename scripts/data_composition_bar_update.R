@@ -17,6 +17,7 @@ library(plotly)
 library(htmlwidgets)
 
 source('/root/microbiome/microbiome/metage_megahit/display_name_map.R')
+source('/root/microbiome/microbiome/metage_megahit/plot_theme_update.R')
 
 sample = read.table(file.path(data_dir, 'sample-metadata.tsv'), sep = '\t',
                     colClasses = 'character', header = T, check.names = F, fill = TRUE)
@@ -49,7 +50,7 @@ plot_summary <- function(plot_dat, prefix){
     geom_bar(stat="identity",width=0.5,position='stack')+
     geom_text(aes(label=label), position = position_stack(vjust=0.5), family='Times New Roman')+
     coord_polar("y", start=0)+
-    theme_bw(base_family = 'Times New Roman',base_size = 16,base_line_size =0.3)+
+    metage_theme()+
     theme(panel.border = element_blank(),  #去外框
           panel.grid = element_blank(),   #去网格
           axis.ticks = element_blank(),

@@ -1,86 +1,51 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-"""
-func_unifrac_update.py
-
-基于功能丰度表和功能系统发育树计算 functional UniFrac beta 多样性。
-当前版本为框架实现，核心算法保留 TODO 标记。
-"""
-
+import argparse
+import glob
+import logging
 import os
 import sys
-import argparse
-import logging
-import pandas as pd
 
-logging.basicConfig(
-    level=logging.INFO,
-    format='[%(asctime)s] %(levelname)s: %(message)s',
-    datefmt='%Y-%m-%d %H:%M:%S'
-)
+from beta_four_distances import read_abundance, read_metadata, read_tree, run_four
+
+logging.basicConfig(level=logging.INFO, format='[%(asctime)s] %(levelname)s: %(message)s')
 log = logging.getLogger(__name__)
 
 
-def read_tree(tree_file):
-    """TODO: 使用 scipy/ete3/DendroPy 读取 Newick 树。"""
-    log.info('TODO: 读取并解析功能树: %s', tree_file)
-    return None
-
-
-def compute_unifrac(abundance_df, tree, weighted=True):
-    """TODO: 实现 weighted / unweighted UniFrac 距离矩阵计算。"""
-    log.info('TODO: 计算 %s functional UniFrac beta 多样性', 'weighted' if weighted else 'unweighted')
-    samples = abundance_df.columns.tolist()
-    dist = pd.DataFrame(0.0, index=samples, columns=samples)
-    return dist
-
-
 def main():
-    parser = argparse.ArgumentParser(description='功能 UniFrac beta 多样性')
-    parser.add_argument('-I', '--i_datadir', type=str, required=True, help='包含 sample-metadata.tsv 的目录')
-    parser.add_argument('--tree', type=str, required=True, help='功能系统发育树文件（Newick 格式）')
-    parser.add_argument('--func_table', type=str, default=None, help='功能丰度表路径（可选）')
-    parser.add_argument('--func_tmp', type=str, default='func_base', help='func_base 临时目录')
-    parser.add_argument('--outdir', type=str, default='func_unifrac', help='UniFrac 输出目录')
+    parser = argparse.ArgumentParser(description='功能注释四类 Beta 距离及 PCoA')
+    parser.add_argument('-I', '--i_datadir', required=True)
+    parser.add_argument('--tree', required=True)
+    parser.add_argument('--func_table', default=None)
+    parser.add_argument('--func_tmp', default='func_base')
+    parser.add_argument('--outdir', default='func_unifrac')
     args = parser.parse_args()
-
-    datadir = os.path.abspath(args.i_datadir)
-    tree_file = os.path.abspath(args.tree)
-    func_tmpdir = os.path.abspath(args.func_tmp)
-    outdir = os.path.abspath(args.outdir)
-    os.makedirs(outdir, exist_ok=True)
-
-    if not os.path.exists(tree_file):
-        log.error('功能树文件不存在: %s', tree_file)
-        sys.exit(1)
-
     try:
-        log.info('开始功能 UniFrac 分析')
-        tree = read_tree(tree_file)
-
-        func_table = args.func_table
-        if func_table is None:
-            candidate = os.path.join(func_tmpdir, 'group1', '1.KEGG', 'KEGG_sam.tsv')
-            func_table = candidate if os.path.exists(candidate) else None
-
-        if func_table and os.path.exists(func_table):
-            abundance_df = pd.read_csv(func_table, index_col=0, sep='\t')
-        else:
-            log.warning('未找到功能丰度表，使用空矩阵占位')
-            abundance_df = pd.DataFrame()
-
-        if not abundance_df.empty:
-            wdist = compute_unifrac(abundance_df, tree, weighted=True)
-            udist = compute_unifrac(abundance_df, tree, weighted=False)
-            wdist.to_csv(os.path.join(outdir, 'weighted_func_unifrac.csv'), index=True, encoding='utf-8-sig')
-            udist.to_csv(os.path.join(outdir, 'unweighted_func_unifrac.csv'), index=True, encoding='utf-8-sig')
-        else:
-            pd.DataFrame().to_csv(os.path.join(outdir, 'weighted_func_unifrac.csv'), index=False)
-            pd.DataFrame().to_csv(os.path.join(outdir, 'unweighted_func_unifrac.csv'), index=False)
-
-        log.info('功能 UniFrac 分析完成，输出: %s', outdir)
-    except Exception as e:
-        log.error('功能 UniFrac 分析失败: %s', e)
+        metadata, tree = read_metadata(args.i_datadir), read_tree(args.tree)
+        root = os.path.abspath(args.func_tmp)
+        tables = [os.path.abspath(args.func_table)] if args.func_table else sorted(
+            glob.glob(os.path.join(root, 'group*', '**', '*_sam.tsv'), recursive=True))
+        if not tables:
+            raise FileNotFoundError('func_base 中未找到 *_sam.tsv')
+        failures, completed = [], 0
+        for table in tables:
+            relative = os.path.relpath(table, root)
+            outdir = os.path.join(os.path.abspath(args.outdir), os.path.splitext(relative)[0])
+            try:
+                abundance = read_abundance(table, metadata['sample-id'].tolist())
+                matched = run_four(abundance, tree, outdir, metadata, relative)
+                completed += 1
+                log.info('%s 完成，UniFrac 匹配 %d 个树叶节点', relative, matched)
+            except Exception as error:
+                failures.append('%s\t%s' % (relative, error))
+                log.warning('%s 跳过: %s', relative, error)
+        os.makedirs(os.path.abspath(args.outdir), exist_ok=True)
+        with open(os.path.join(os.path.abspath(args.outdir), 'skipped_tables.tsv'), 'w', encoding='utf-8') as handle:
+            handle.write('table\treason\n' + '\n'.join(failures) + ('\n' if failures else ''))
+        if completed == 0:
+            raise RuntimeError('没有任何功能表完成四类距离计算，详见 skipped_tables.tsv')
+    except Exception as error:
+        log.error('功能四距离分析失败: %s', error)
         sys.exit(1)
 
 

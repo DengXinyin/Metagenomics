@@ -71,23 +71,25 @@ def map_sample(index_prefix, cleandir, sample_id, outdir, threads=16):
 
     bam = os.path.join(outdir, '{}.sort.bam'.format(sample_id))
 
+    bowtie_log = os.path.join(outdir, '{}.bowtie2.log'.format(sample_id))
     cmd = (
         'bowtie2 -p {threads} -x {index} -1 {r1} -2 {r2} '
-        '2> {outdir}/{sample}.bowtie2.log '
+        '2> {bowtie_log} '
         '| samtools sort -@ {threads} -o {bam} - '
         '&& samtools index {bam}'
     ).format(
         threads=threads, index=index_prefix,
         r1=r1, r2=r2, sample=sample_id,
-        bam=bam, outdir=outdir
+        bam=bam, outdir=outdir, bowtie_log=bowtie_log
     )
     run_cmd(cmd)
 
     # 统计比对率
-    with open(os.path.join(outdir, '{}.bowtie2.log'.format(sample_id))) as f:
+    with open(bowtie_log) as f:
         for line in f:
             if 'overall alignment rate' in line:
                 log.info('%s: %s', sample_id, line.strip())
+    os.remove(bowtie_log)
 
 
 def main():

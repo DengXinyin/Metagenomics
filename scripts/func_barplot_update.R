@@ -97,7 +97,7 @@ for (i in 1: k){
 
         p1 <- ggplot(data = data, aes(x=variable, y=value, fill=pathway))+
           geom_bar(stat="identity", position="stack", width=0.8) +
-          theme_bw(base_family = 'Times New Roman',base_size = 16,base_line_size =0.5)+
+          metage_theme()+
           theme(panel.border = element_rect(color = 'black', fill = NA, linewidth = 0.5),
                 panel.grid = element_blank(),
                 text = element_text(family = 'Times New Roman', size = 16),
@@ -162,3 +162,4 @@ for (i in 1: k){
     }
   }
 }
+source('/root/microbiome/microbiome/metage_megahit/plot_theme_update.R')

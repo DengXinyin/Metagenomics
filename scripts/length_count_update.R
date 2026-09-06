@@ -75,7 +75,7 @@ for (i in 2: ncol(sample)){
   plot_df$variable <- factor(plot_df$variable, levels = valid_samps)
   p <- ggplot(data = plot_df, aes(x=variable, y=value, group=Length, fill=Length))+
     geom_bar(stat="identity",width=0.5,position='stack')+
-    theme_bw(base_family = 'Times New Roman',base_size = 16,base_line_size =0.3)+
+    metage_theme()+
     theme(panel.grid = element_blank(),
           plot.title = element_text(hjust = 0.5, size = 22),
           axis.text.x  = element_text(color = 'black', size = 16, angle = 90, vjust = 0.5),
@@ -101,3 +101,4 @@ for (i in 2: ncol(sample)){
   ggsave(paste0(gro_dir, 'contig_length.pdf'), p,
          width = 9+(k_samples/20), height = 6+(k_samples/40), device = cairo_pdf)
 }
+source('/root/microbiome/microbiome/metage_megahit/plot_theme_update.R')

@@ -57,7 +57,7 @@ plot_stacked_bar <- function(df, out_pdf, out_html, title, ylabel = "Relative ab
 
   p <- ggplot(df_melt, aes(x = variable, y = value, fill = pathway)) +
     geom_bar(stat = "identity", position = "stack", width = 0.8) +
-    theme_bw(base_family = 'Times New Roman', base_size = 16) +
+    metage_theme() +
     theme(panel.border = element_blank(),
           panel.grid = element_blank(),
           axis.line = element_line(color = "black"),
@@ -153,3 +153,4 @@ plot_heatmap(cog_df,
              "Top COG Heatmap (Z-score)")
 
 cat("COG 可视化完成，输出目录:", res_dir, "\n")
+source('/root/microbiome/microbiome/metage_megahit/plot_theme_update.R')

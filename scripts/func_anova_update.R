@@ -86,16 +86,14 @@ for (i in 1: k){
           p <- ggplot(data = row,aes(x=group, y=value, fill=group)) +
             stat_boxplot(geom = 'errorbar', width=0.3) +
             geom_boxplot()+
-            theme_bw(base_family = 'Times New Roman',base_size = 14,base_line_size =0.5)+
+            metage_theme()+
             theme(panel.grid = element_blank(),    #去网格
                   legend.position = 'none',
                   axis.title.x = element_blank(),
-                  plot.title = element_text(hjust = 0.5, size = 12),
                   axis.text = element_text(color="black"),
-                  axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1),
-                  axis.title = element_text(size = 13))+
+                  axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1))+
             labs(y='Abundance')+
-            scale_fill_manual(values = yanse)+
+            scale_fill_manual(values = metage_group_palette(row$group))+
             ggtitle(paste0(func.name,', pvalue=',p_value))
           ggp <- ggplotly(p)
           
@@ -132,3 +130,4 @@ for (i in 1: k){
     
   }
 }
+source('/root/microbiome/microbiome/metage_megahit/plot_theme_update.R')

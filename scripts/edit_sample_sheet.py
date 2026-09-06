@@ -20,7 +20,7 @@ def main():
 
     with open(args.inputs, encoding="utf-8") as handle:
         inputs = json.load(handle)
-    data_dir = Path(inputs["metage_megahit2_update.datapath"])
+    data_dir = Path(inputs["metage_megahit_v2_88_1_taizhou.datapath"])
     workbook = data_dir / "data.xlsx"
     if not workbook.exists():
         raise RuntimeError(f"data.xlsx 不存在: {workbook}")

@@ -15,22 +15,22 @@
 用法示例：
   # 扫描单个 workflow 执行目录
   python3 scripts/update_registry_from_wdl.py \
-      --registry cromwell-executions/metage_megahit2_update/registry/sample_registry.tsv \
-      --execution-dir cromwell-executions/metage_megahit2_update/750c07e1-4cda-4d74-a55e-11ed3adc5119 \
-      --out cromwell-executions/metage_megahit2_update/registry/sample_registry.tsv
+      --registry cromwell-executions/metage_megahit_v2_88_1_taizhou/registry/sample_registry.tsv \
+      --execution-dir cromwell-executions/metage_megahit_v2_88_1_taizhou/750c07e1-4cda-4d74-a55e-11ed3adc5119 \
+      --out cromwell-executions/metage_megahit_v2_88_1_taizhou/registry/sample_registry.tsv
 
   # 扫描多个 workflow 执行目录
   python3 scripts/update_registry_from_wdl.py \
-      --registry cromwell-executions/metage_megahit2_update/registry/sample_registry.tsv \
+      --registry cromwell-executions/metage_megahit_v2_88_1_taizhou/registry/sample_registry.tsv \
       --execution-dir dir1 --execution-dir dir2 \
-      --out cromwell-executions/metage_megahit2_update/registry/sample_registry.tsv
+      --out cromwell-executions/metage_megahit_v2_88_1_taizhou/registry/sample_registry.tsv
 
   # 自动扫描 cromwell-executions 下所有历史 workflow 目录
   python3 scripts/update_registry_from_wdl.py \
-      --registry cromwell-executions/metage_megahit2_update/registry/sample_registry.tsv \
+      --registry cromwell-executions/metage_megahit_v2_88_1_taizhou/registry/sample_registry.tsv \
       --auto-scan-parent cromwell-executions \
       --skip-workflow test_workflow \
-      --out cromwell-executions/metage_megahit2_update/registry/sample_registry.tsv
+      --out cromwell-executions/metage_megahit_v2_88_1_taizhou/registry/sample_registry.tsv
 """
 
 import argparse
@@ -383,7 +383,7 @@ def discover_execution_dirs(parent_dir, skip_workflows=None):
     """
     自动发现 parent_dir 下所有 WDL workflow 执行目录。
     规则：
-    - parent_dir 下每个 workflow 类型目录（如 metage_megahit2_update）
+    - parent_dir 下每个 workflow 类型目录（如 metage_megahit_v2_88_1_taizhou）
     - 其下每个 UUID 子目录（如 750c07e1-...）
     - 只要该子目录下存在 call-* 目录，即视为有效执行目录
     """

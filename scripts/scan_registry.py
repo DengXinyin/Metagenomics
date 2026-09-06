@@ -12,11 +12,11 @@
 
 用法示例：
   # 从单个项目目录生成新 registry
-  python3 scripts/scan_registry.py --project-dir /path/to/project --out cromwell-executions/metage_megahit2_update/registry/sample_registry.tsv
+  python3 scripts/scan_registry.py --project-dir /path/to/project --out cromwell-executions/metage_megahit_v2_88_1_taizhou/registry/sample_registry.tsv
 
   # 追加多个项目目录到现有 registry
   python3 scripts/scan_registry.py --project-dir /path/to/project1 --project-dir /path/to/project2 \
-      --existing cromwell-executions/metage_megahit2_update/registry/sample_registry.tsv --out cromwell-executions/metage_megahit2_update/registry/sample_registry.tsv
+      --existing cromwell-executions/metage_megahit_v2_88_1_taizhou/registry/sample_registry.tsv --out cromwell-executions/metage_megahit_v2_88_1_taizhou/registry/sample_registry.tsv
 
   # 指定分组信息（JSON 文件：{"sample_name": "group", ...}）
   python3 scripts/scan_registry.py --project-dir /path/to/project --group-map groups.json --out registry.tsv

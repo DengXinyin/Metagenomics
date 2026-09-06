@@ -15,6 +15,7 @@ library(plotly)
 library(htmlwidgets)
 
 source('/root/microbiome/microbiome/metage_megahit/display_name_map.R')
+source('/root/microbiome/microbiome/metage_megahit/plot_theme_update.R')
 
 sample = read.table(file.path(data_dir, 'sample-metadata.tsv'), sep = '\t',
                     colClasses = 'character',header = T, check.names = F, fill = TRUE)
@@ -24,7 +25,7 @@ plot_dist = function(content, prefix){
   ggplot(data = content, aes(x=reads, y=value, group=variable, color=variable))+
     geom_line(linewidth=0.3)+
     geom_vline(xintercept = 150, linetype = "dashed", size = 0.3) +
-    theme_bw(base_family = 'Times New Roman',base_size = 16,base_line_size =0.3)+
+    metage_theme()+
     theme(panel.grid = element_blank(),   #去网格
           plot.title = element_text(hjust = 0.5, size = 20), #调整标题位置
           axis.text.x  = element_text(color = 'black', angle = 90, vjust = 0.5),

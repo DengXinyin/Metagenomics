@@ -11,6 +11,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 
 import pandas as pd
 from get_scriptspath_update import scripts_path, Rscript_j
+from subprocess_log_utils import run_with_failure_log
 
 logging.basicConfig(
     level=logging.INFO,
@@ -55,14 +56,16 @@ def krona(res_dir, anno_dir, datadir):
         krona_cmd = ['ktImportText'] + command_str.split() + ['-o', krona_html]
         log_file = os.path.join(res_grodir, 'krona.log')
         log.info('[%s] 生成 Krona: %s', group_num, krona_html)
-        with open(log_file, 'w') as lf:
-            subprocess.run(krona_cmd, stdout=lf, stderr=subprocess.STDOUT, check=True)
+        run_with_failure_log(krona_cmd, log_file, stop_dir=res_dir)
 
 
 def _run_r_script(r_script, cmd, log_file):
     """运行单个 R 脚本，返回 (r_script, None) 或抛出异常。"""
-    with open(log_file, 'w') as lf:
-        subprocess.run(cmd, stdout=lf, stderr=subprocess.STDOUT, check=True)
+    run_with_failure_log(
+        cmd,
+        log_file,
+        stop_dir=os.path.dirname(os.path.dirname(log_file)),
+    )
     return r_script
 
 

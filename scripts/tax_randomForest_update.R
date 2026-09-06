@@ -81,7 +81,7 @@ for (i in 1: k){
                      width = 0.7,
                      stat = "identity",
                      fill="steelblue")+
-            theme_bw(base_family = 'Times New Roman',base_size = 17,base_line_size =0.5) +
+            metage_theme() +
             theme(panel.grid = element_blank(),    #去网格
                   panel.border = element_blank(),
                   axis.ticks.y = element_blank(),
@@ -116,7 +116,7 @@ for (i in 1: k){
             geom_bar(position = position_dodge(),
                      width = 0.7,
                      stat = "identity")+
-            theme_bw(base_family = 'Times New Roman',base_size = 17,base_line_size =0.5) +
+            metage_theme() +
             theme(panel.grid = element_blank(),    #去网格
                   panel.border = element_blank(),
                   axis.ticks.y = element_blank(),
@@ -146,3 +146,4 @@ for (i in 1: k){
     }
   }
 }
+source('/root/microbiome/microbiome/metage_megahit/plot_theme_update.R')

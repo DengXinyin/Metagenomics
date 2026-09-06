@@ -1,5 +1,6 @@
 import pandas as pd
 import argparse
+import json
 import os
 import time
 from pathlib import Path
@@ -43,6 +44,46 @@ if missing_sample_columns:
     raise ValueError(
         "sample sheet 缺少必要列: " + ", ".join(sorted(missing_sample_columns))
     )
+
+# 客户、项目和报告信息改由测试者提供的独立文件负责；sample sheet 只保存样本信息。
+input_project_info_path = os.path.join(args.indir, "project_info.json")
+input_report_no_path = os.path.join(args.indir, "report_no.txt")
+if not os.path.isfile(input_project_info_path):
+    raise FileNotFoundError(f"输入目录缺少 project_info.json: {input_project_info_path}")
+if not os.path.isfile(input_report_no_path):
+    raise FileNotFoundError(f"输入目录缺少 report_no.txt: {input_report_no_path}")
+
+with open(input_project_info_path, encoding="utf-8-sig") as handle:
+    project_info = json.load(handle)
+if not isinstance(project_info, dict):
+    raise ValueError("project_info.json 顶层必须是 JSON object。")
+
+required_project_fields = ["客户名称", "客户单位", "项目编号", "项目名称"]
+missing_project_fields = [
+    field for field in required_project_fields
+    if field not in project_info or not str(project_info[field]).strip()
+]
+if missing_project_fields:
+    raise ValueError(
+        "project_info.json 缺少或未填写必要字段: " + ", ".join(missing_project_fields)
+    )
+for field in required_project_fields:
+    project_info[field] = str(project_info[field]).strip()
+
+with open(input_report_no_path, encoding="utf-8-sig") as handle:
+    report_no = handle.read().strip()
+if not report_no:
+    raise ValueError("report_no.txt 内容为空。")
+if "\n" in report_no or "\r" in report_no:
+    raise ValueError("report_no.txt 只能包含一个非空报告编号。")
+
+project_info_path = os.path.join(args.outdir, "project_info.json")
+with open(project_info_path, "w", encoding="utf-8") as handle:
+    json.dump(project_info, handle, ensure_ascii=False, indent=2)
+    handle.write("\n")
+report_no_path = os.path.join(args.outdir, "report_no.txt")
+with open(report_no_path, "w", encoding="utf-8") as handle:
+    handle.write(report_no + "\n")
 
 for column in ["fastqfile", "sample", "group"]:
     df_sample[column] = df_sample[column].fillna("").astype(str).str.strip()
@@ -135,6 +176,29 @@ df_meta = pd.concat([pd.DataFrame([type_row]), df_meta], ignore_index=True)
 metadata_path = os.path.join(args.outdir, "sample-metadata.tsv")
 df_meta.to_csv(metadata_path, sep="\t", index=False)
 
+# 输出一个标准化 data.xlsx：固定包含 sample、comparison、information 三个工作表。
+# information 使用纵向“字段/内容”结构，并保留 project_info.json 的全部顶层字段。
+information_rows = []
+for key, value in project_info.items():
+    if str(key) == "报告编号":
+        continue
+    if isinstance(value, (dict, list)):
+        value = json.dumps(value, ensure_ascii=False, separators=(",", ":"))
+    elif value is None:
+        value = ""
+    else:
+        value = str(value)
+    information_rows.append({"字段": str(key), "内容": value})
+information_rows.append({"字段": "报告编号", "内容": report_no})
+df_information = pd.DataFrame(information_rows)
+normalized_xlsx = os.path.join(args.outdir, "data.xlsx")
+with pd.ExcelWriter(normalized_xlsx, engine="openpyxl") as writer:
+    df_sample[["fastqfile", "sample", "group"]].to_excel(
+        writer, sheet_name="sample", index=False
+    )
+    df_comp.to_excel(writer, sheet_name="comparison", index=False)
+    df_information.to_excel(writer, sheet_name="information", index=False)
+
 elapsed = time.time() - start_time
 print(f"\n✅ 完成！耗时: {elapsed:.3f}秒")
-print(f"📄 输出: {sample_path}, {metadata_path}")
+print(f"📄 输出: {sample_path}, {metadata_path}, {project_info_path}, {report_no_path}, {normalized_xlsx}")

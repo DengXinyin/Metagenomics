@@ -83,18 +83,16 @@ for (i in 1: k){
           if (p_nums > 2){
             p1 <- ggplot(data=df_points,aes(x=NMDS1,y=NMDS2,color=group))+
               geom_point(size=3)+
-              theme_bw(base_family = 'Times New Roman',base_size = 14,base_line_size =0.5)+
+              metage_theme()+
               theme(panel.grid = element_blank(),    #去网格
-                    plot.title = element_text(hjust = 0.5, size = 14),
                     axis.text = element_text(color="black"),
-                    axis.title = element_text(size = 13),
                     legend.background = element_blank(),
                     legend.box.background = element_blank(),
                     legend.key = element_blank())+
               geom_hline(yintercept=0,linetype='dashed',linewidth=0.8,color='grey') +
               geom_vline(xintercept=0,linetype='dashed',linewidth=0.8,color='grey') +
               ggtitle(paste0(beta,' (stress=',stress,')'))+
-              scale_color_manual(values = yanse)+
+              scale_color_manual(values = metage_group_palette(df_points$group))+
               lims(x = c(min(df_points$NMDS1)*1.2, max(df_points$NMDS1)*1.2), 
                    y = c(min(df_points$NMDS2)*1.2, max(df_points$NMDS2)*1.2))+
               guides(color = guide_legend(override.aes = list(label = "", size = 3)))
@@ -145,3 +143,4 @@ for (i in 1: k){
     }
   }
 }
+source('/root/microbiome/microbiome/metage_megahit/plot_theme_update.R')

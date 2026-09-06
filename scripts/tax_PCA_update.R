@@ -76,20 +76,16 @@ for (i in 1: k){
             geom_point(size=3, alpha = 0.8) +
             geom_hline(yintercept=0,linetype='dashed',linewidth=0.8,color='grey') +
             geom_vline(xintercept=0,linetype='dashed',linewidth=0.8,color='grey') +
-            theme_bw(base_family = 'Times New Roman',base_size = 16,base_line_size =0.5) +
+            metage_theme() +
             theme(panel.grid = element_blank(),    #去网格
-                  plot.title = element_text(hjust = 0.5, size = 22),
-                  axis.text = element_text(color="black", size = 16),
-                  axis.title = element_text(size = 18),
-                  legend.title = element_text(size = 20),
-                  legend.text = element_text(size = 18),
+                  axis.text = element_text(color="black"),
                   legend.background = element_blank(),
                   legend.box.background = element_blank(),
                   legend.key = element_blank()
             ) +
             labs(x=paste0('PC1',' (',round(res.pca[["eig"]][1,2],2),'%)'),
                  y=paste0('PC2',' (',round(res.pca[["eig"]][2,2],2),'%)'))+
-            scale_color_manual(values = yanse)+
+            scale_color_manual(values = metage_group_palette(pca_mat$group))+
             lims(x = c(min(pca_mat$Dim.1)*1.2, max(pca_mat$Dim.1)*1.2), 
                  y = c(min(pca_mat$Dim.2)*1.2, max(pca_mat$Dim.2)*1.2))+
             guides(color = guide_legend(override.aes = list(label = "", size = 3)))
@@ -135,3 +131,4 @@ for (i in 1: k){
     }
   }
 }
+source('/root/microbiome/microbiome/metage_megahit/plot_theme_update.R')

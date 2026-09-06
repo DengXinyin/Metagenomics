@@ -57,7 +57,7 @@ for (i in 1: k){
         p <- ggplot(data = LDA_tab,
                     aes(x=LDA,y=Taxonomy, fill=Group))+
           geom_bar(position = position_dodge(),stat = "identity", width = 0.8)+
-          theme_bw(base_family = 'Times New Roman',base_size = 14,base_line_size =0.5)+
+          metage_theme()+
           theme(panel.border = element_blank(),
                 panel.grid = element_blank(),    #去网格
                 axis.ticks = element_blank(),
@@ -90,3 +90,4 @@ for (i in 1: k){
     }
   }
 }
+source('/root/microbiome/microbiome/metage_megahit/plot_theme_update.R')

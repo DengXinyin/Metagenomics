@@ -12,6 +12,7 @@ from concurrent.futures import ProcessPoolExecutor, as_completed
 import pandas as pd
 from diff_method import anova, kw_wilcoxon
 from get_scriptspath_update import scripts_path, Rscript_j
+from subprocess_log_utils import run_with_failure_log
 from r_analysis_update import (
     plot_anova_boxplots,
     plot_wilcoxon_boxplots,
@@ -183,8 +184,7 @@ def _run_func_metaseq(func_tmpdir, datadir, res_dir):
     update_r_dir = os.path.dirname(os.path.abspath(__file__))
     cmd = [Rscript_j, os.path.join(update_r_dir, r_script), func_tmpdir, datadir, res_dir]
     log.info('运行 R 脚本: %s', r_script)
-    with open(log_file, 'w') as lf:
-        subprocess.run(cmd, stdout=lf, stderr=subprocess.STDOUT, check=True)
+    run_with_failure_log(cmd, log_file, stop_dir=res_dir)
     return r_script
 
 

@@ -41,7 +41,16 @@ def get_table(anno_dir, datadir, res_dir, func_tmpdir, dbdir):
             os.makedirs(tmpdir_c, exist_ok=True)
 
         # kegg
-        kegg_selected = kegg_tpm_all.columns[0:6].to_list()
+        # KEGG 基因级汇总表包含一列 taxonomy 及 eggNOG-mapper 提供的
+        # KEGG/功能注释。显式按列名选择，避免新增注释列后样本列错位。
+        kegg_selected = [
+            'GeneID', 'taxonomy', 'KO', 'Description', 'Preferred_name', 'EC',
+            'KEGG_Pathway', 'KEGG_Module', 'KEGG_Reaction',
+            'KEGG_rclass', 'BRITE', 'KEGG_TC',
+            'level3_pathway_ID', 'level1_pathway_name',
+            'level2_pathway_name', 'level3_pathway_name',
+        ]
+        kegg_selected = [c for c in kegg_selected if c in kegg_tpm_all.columns]
         kegg_tpm = kegg_tpm_all.loc[:, kegg_selected + samples_ls]
         kegg_tpm = kegg_tpm[~(kegg_tpm[samples_ls] == 0).all(axis=1)]
         kegg_tpm.to_csv('%s/1.KEGG/KEGG.tpm.csv' % resdir, index=False, encoding='utf-8-sig')
