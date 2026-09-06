@@ -1,0 +1,13 @@
+# Cromwell runtime files and large local dependencies
+cromwell-*.jar
+cromwell-db/
+cromwell-executions/
+
+# Generated archives and language caches
+*.tar.gz
+__pycache__/
+*.py[cod]
+
+# Local logs and temporary files
+*.log
+*.tmp

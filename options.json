@@ -1,0 +1,6 @@
+{
+  "final_workflow_outputs_dir": "/home/xydeng/Metagenomics_Docker/WDL_original/outputs",
+  "use_relative_output_paths": false,
+  "write_to_cache": true,
+  "read_from_cache": true
+}

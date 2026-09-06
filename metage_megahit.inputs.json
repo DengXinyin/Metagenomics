@@ -1,0 +1,12 @@
+{
+  "metage_megahit2.datapath": "/home/xydeng/Metagenomics_Docker/WDL_original",
+  "metage_megahit2.rawdatapath": "/home/xydeng/Metagenomics_Docker/data",
+  "metage_megahit2.host": "none",
+  "metage_megahit2.mapdir": "/cephfs_data/genostack_v3/genostack_php/public_file_data/metagenome-DB",
+  "metage_megahit2.binning": "no",
+  "metage_megahit2.analyse": "yes",
+  "metage_megahit2.report_no": "/home/xydeng/Metagenomics_Docker/WDL_original/report_no.txt",
+  "metage_megahit2.project": "/home/xydeng/Metagenomics_Docker/WDL_original/data.xlsx",
+  "metage_megahit2.isbwa": "yes",
+  "metage_megahit2.Taskid": "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+}
