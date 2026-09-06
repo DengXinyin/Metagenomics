@@ -20,6 +20,9 @@ library(htmlwidgets)
 library(webshot)
 })
 
+source('/root/microbiome/microbiome/metage_megahit/display_name_map.R')
+display_map <- load_display_name_map(data_dir)
+
 loadMeta_2 = function(file, sep = "\t") {
   dat2 <- read.table(file, header = FALSE, sep = sep, nrows = 1, quote = '',
                      stringsAsFactors = FALSE)
@@ -110,11 +113,18 @@ for (i in 1: k){
             des_sign <- arrange(des_sign, by_group= pvalues)
             otus_sign <- rownames(des_sign)[1:50]
             plot_sign <- na.omit(otu$counts[match(otus_sign, rownames(otu$counts)), ])
+            if (length(display_map) > 0) {
+              orig_colnames <- as.character(colnames(plot_sign))
+              new_colnames <- display_map[orig_colnames]
+              new_colnames[is.na(new_colnames)] <- orig_colnames[is.na(new_colnames)]
+              colnames(plot_sign) <- new_colnames
+              rownames(group) <- new_colnames[match(rownames(group), orig_colnames)]
+            }
             p <- pheatmap(plot_sign,scale = 'row',
                           cluster_rows = T, cluster_cols = F,
                           annotation_col = group,
                           border_color = 'transparent',
-                          fontsize = 9,
+                          fontsize = 11,
                           color = color,
                           #treeheight_row = 0
             )
@@ -139,7 +149,7 @@ for (i in 1: k){
                               col=color, ColSideColors = gro_color,
                               showticklabels = c(T,T),
                               angle_col = 45,labRowSize =0.5,labColSize =0.5,
-                              famliy="宋体")
+                              famliy="Times New Roman")
             # 保存结果
             if (type == '1.KEGG'|type == '2.eggNOG'|type =='3.CAZy'|type == '4.GO'){
               resdir = paste(res_dir, gro_num, '8-FunctionStatistical_analysis', type, '5.metagenomeSeq', sep='/')

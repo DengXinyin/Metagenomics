@@ -1,6 +1,5 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# By: Wang Li 2024
 
 import scipy.stats as stats
 import pandas as pd
@@ -81,113 +80,117 @@ def anova(tax_dat, sam_gro, group_num, n_jobs=-1):
         -1 = 全核
     """
 
-    tax_dat = tax_dat.copy()
+    try:
+        tax_dat = tax_dat.copy()
 
-    # ----------------------------------
-    # 去掉全空列
-    # ----------------------------------
-    tax_dat = tax_dat.dropna(axis=1, how="all")
+        # ----------------------------------
+        # 去掉全空列
+        # ----------------------------------
+        tax_dat = tax_dat.dropna(axis=1, how="all")
 
-    taxname = tax_dat.columns[0]
+        taxname = tax_dat.columns[0]
 
-    sample_cols = tax_dat.columns[1:]
+        sample_cols = tax_dat.columns[1:]
 
-    # ----------------------------------
-    # 样本列转数字
-    # ----------------------------------
-    tax_dat[sample_cols] = tax_dat[sample_cols].apply(
-        pd.to_numeric,
-        errors="coerce"
-    )
-
-    # ----------------------------------
-    # 去掉全零行 / 常数行
-    # ----------------------------------
-    tax_dat = tax_dat.loc[
-        tax_dat[sample_cols].std(axis=1, skipna=True) > 0
-    ].reset_index(drop=True)
-
-    if tax_dat.empty:
-        return None
-
-    # ----------------------------------
-    # 分组信息
-    # ----------------------------------
-    k = sam_gro[group_num].nunique()
-
-    n = sam_gro[group_num].value_counts().min()
-
-    if k <= 1 or n <= 1:
-        return None
-
-    # ----------------------------------
-    # 构建 group 字典
-    # ----------------------------------
-    group_dic = pd.Series(
-        sam_gro[group_num].values,
-        index=sam_gro["sample-id"]
-    ).to_dict()
-
-    # ----------------------------------
-    # 按组拆矩阵（矢量化）
-    # ----------------------------------
-    groups_array = []
-
-    for name, cols in pd.Series(sample_cols).groupby(
-        pd.Series(sample_cols).map(group_dic)
-    ):
-        mat = tax_dat[cols.values].to_numpy(dtype=float)
-        groups_array.append(mat)
-
-    # ----------------------------------
-    # 批量 ANOVA（极快）
-    # ----------------------------------
-    F_statistic, pVal = stats.f_oneway(*groups_array, axis=1)
-
-    padj = multitest.fdrcorrection(pVal)[1]
-
-    # ----------------------------------
-    # 拼接结果
-    # ----------------------------------
-    tax_dat_p = tax_dat.copy()
-
-    tax_dat_p["F_value"] = F_statistic
-    tax_dat_p["p_value"] = pVal
-    tax_dat_p["padj"] = padj
-
-    tax_dat_sign_pvalue = tax_dat_p[
-        tax_dat_p["p_value"] < 0.05
-    ].reset_index(drop=True)
-
-    # =================================================
-    # Tukey（仅显著 feature）
-    # =================================================
-    tukey_results_df = None
-
-    if k > 2 and not tax_dat_sign_pvalue.empty:
-
-        sig_taxa = tax_dat_sign_pvalue[taxname].tolist()
-
-        tukey_list = Parallel(n_jobs=n_jobs)(
-            delayed(tukey_one_feature)(
-                genus,
-                tax_dat,
-                sam_gro,
-                taxname,
-                group_num
-            )
-            for genus in sig_taxa
+        # ----------------------------------
+        # 样本列转数字
+        # ----------------------------------
+        tax_dat[sample_cols] = tax_dat[sample_cols].apply(
+            pd.to_numeric,
+            errors="coerce"
         )
 
-        tukey_list = [x for x in tukey_list if x is not None]
+        # ----------------------------------
+        # 去掉全零行 / 常数行
+        # ----------------------------------
+        tax_dat = tax_dat.loc[
+            tax_dat[sample_cols].std(axis=1, skipna=True) > 0
+        ].reset_index(drop=True)
 
-        if len(tukey_list) > 0:
-            tukey_results_df = pd.concat(
-                tukey_list,
-                ignore_index=True
+        if tax_dat.empty:
+            return None
+
+        # ----------------------------------
+        # 分组信息
+        # ----------------------------------
+        k = sam_gro[group_num].nunique()
+
+        n = sam_gro[group_num].value_counts().min()
+
+        if k <= 1 or n <= 1:
+            return None
+
+        # ----------------------------------
+        # 构建 group 字典
+        # ----------------------------------
+        group_dic = pd.Series(
+            sam_gro[group_num].values,
+            index=sam_gro["sample-id"]
+        ).to_dict()
+
+        # ----------------------------------
+        # 按组拆矩阵（矢量化）
+        # ----------------------------------
+        groups_array = []
+
+        for name, cols in pd.Series(sample_cols).groupby(
+            pd.Series(sample_cols).map(group_dic)
+        ):
+            mat = tax_dat[cols.values].to_numpy(dtype=float)
+            groups_array.append(mat)
+
+        # ----------------------------------
+        # 批量 ANOVA（极快）
+        # ----------------------------------
+        F_statistic, pVal = stats.f_oneway(*groups_array, axis=1)
+
+        padj = multitest.fdrcorrection(pVal)[1]
+
+        # ----------------------------------
+        # 拼接结果
+        # ----------------------------------
+        tax_dat_p = tax_dat.copy()
+
+        tax_dat_p["F_value"] = F_statistic
+        tax_dat_p["p_value"] = pVal
+        tax_dat_p["padj"] = padj
+
+        tax_dat_sign_pvalue = tax_dat_p[
+            tax_dat_p["p_value"] < 0.05
+        ].reset_index(drop=True)
+
+        # =================================================
+        # Tukey（仅显著 feature）
+        # =================================================
+        tukey_results_df = None
+
+        if k > 2 and not tax_dat_sign_pvalue.empty:
+
+            sig_taxa = tax_dat_sign_pvalue[taxname].tolist()
+
+            tukey_list = Parallel(n_jobs=n_jobs)(
+                delayed(tukey_one_feature)(
+                    genus,
+                    tax_dat,
+                    sam_gro,
+                    taxname,
+                    group_num
+                )
+                for genus in sig_taxa
             )
 
-    return tax_dat_p, tax_dat_sign_pvalue, tukey_results_df
+            tukey_list = [x for x in tukey_list if x is not None]
+
+            if len(tukey_list) > 0:
+                tukey_results_df = pd.concat(
+                    tukey_list,
+                    ignore_index=True
+                )
+
+        return tax_dat_p, tax_dat_sign_pvalue, tukey_results_df
+    except Exception as e:
+        print(f"[diff_method.anova warning] anova failed for group {group_num}: {e}")
+        return None
 
 
 def dunn_one_feature(genus, tax_dat, sam_gro, taxname, group_num):
@@ -243,137 +246,141 @@ def dunn_one_feature(genus, tax_dat, sam_gro, taxname, group_num):
 # =====================================================
 def kw_wilcoxon(tax_dat, sam_gro, group_num, n_jobs=-1):
 
-    tax_dat = tax_dat.copy()
+    try:
+        tax_dat = tax_dat.copy()
 
-    # ----------------------------------
-    # 去空列
-    # ----------------------------------
-    tax_dat = tax_dat.dropna(axis=1, how="all")
+        # ----------------------------------
+        # 去空列
+        # ----------------------------------
+        tax_dat = tax_dat.dropna(axis=1, how="all")
 
-    taxname = tax_dat.columns[0]
+        taxname = tax_dat.columns[0]
 
-    sample_cols = tax_dat.columns[1:]
+        sample_cols = tax_dat.columns[1:]
 
-    # ----------------------------------
-    # 转数字
-    # ----------------------------------
-    tax_dat[sample_cols] = tax_dat[sample_cols].apply(
-        pd.to_numeric,
-        errors="coerce"
-    )
-
-    # ----------------------------------
-    # 去常数行
-    # ----------------------------------
-    tax_dat = tax_dat.loc[
-        tax_dat[sample_cols].std(axis=1, skipna=True) > 0
-    ].reset_index(drop=True)
-
-    if tax_dat.empty:
-        return None
-
-    # ----------------------------------
-    # 组信息
-    # ----------------------------------
-    k = sam_gro[group_num].nunique()
-    n = sam_gro[group_num].value_counts().min()
-
-    if k <= 1 or n <= 1:
-        return None
-
-    # ----------------------------------
-    # group 字典
-    # ----------------------------------
-    group_dic = pd.Series(
-        sam_gro[group_num].values,
-        index=sam_gro["sample-id"]
-    ).to_dict()
-
-    # ----------------------------------
-    # 分组矩阵
-    # ----------------------------------
-    groups_array = []
-
-    for name, cols in pd.Series(sample_cols).groupby(
-        pd.Series(sample_cols).map(group_dic)
-    ):
-        mat = tax_dat[cols.values].to_numpy(dtype=float)
-        groups_array.append(mat)
-
-    # =====================================================
-    # 两组：Wilcoxon rank-sum
-    # =====================================================
-    if k == 2:
-
-        statistic, pVal = stats.ranksums(
-            groups_array[0],
-            groups_array[1],
-            axis=1
+        # ----------------------------------
+        # 转数字
+        # ----------------------------------
+        tax_dat[sample_cols] = tax_dat[sample_cols].apply(
+            pd.to_numeric,
+            errors="coerce"
         )
 
-        padj = multitest.fdrcorrection(pVal)[1]
-
-        tax_dat_p = tax_dat.copy()
-        tax_dat_p["statistic"] = statistic
-        tax_dat_p["p_value"] = pVal
-        tax_dat_p["padj"] = padj
-
-        tax_dat_sign = tax_dat_p[
-            tax_dat_p["p_value"] < 0.05
+        # ----------------------------------
+        # 去常数行
+        # ----------------------------------
+        tax_dat = tax_dat.loc[
+            tax_dat[sample_cols].std(axis=1, skipna=True) > 0
         ].reset_index(drop=True)
 
-        return tax_dat_p, tax_dat_sign, None
+        if tax_dat.empty:
+            return None
 
-    # =====================================================
-    # 多组：Kruskal-Wallis
-    # =====================================================
-    elif k > 2:
+        # ----------------------------------
+        # 组信息
+        # ----------------------------------
+        k = sam_gro[group_num].nunique()
+        n = sam_gro[group_num].value_counts().min()
 
-        H_statistic, pVal = stats.kruskal(
-            *groups_array,
-            axis=1
-        )
+        if k <= 1 or n <= 1:
+            return None
 
-        padj = multitest.fdrcorrection(pVal)[1]
+        # ----------------------------------
+        # group 字典
+        # ----------------------------------
+        group_dic = pd.Series(
+            sam_gro[group_num].values,
+            index=sam_gro["sample-id"]
+        ).to_dict()
 
-        tax_dat_p = tax_dat.copy()
-        tax_dat_p["statistic"] = H_statistic
-        tax_dat_p["p_value"] = pVal
-        tax_dat_p["padj"] = padj
+        # ----------------------------------
+        # 分组矩阵
+        # ----------------------------------
+        groups_array = []
 
-        tax_dat_sign = tax_dat_p[
-            tax_dat_p["p_value"] < 0.05
-        ].reset_index(drop=True)
+        for name, cols in pd.Series(sample_cols).groupby(
+            pd.Series(sample_cols).map(group_dic)
+        ):
+            mat = tax_dat[cols.values].to_numpy(dtype=float)
+            groups_array.append(mat)
 
-        # ==========================================
-        # Dunn（仅显著行）
-        # ==========================================
-        dunn_results = None
+        # =====================================================
+        # 两组：Wilcoxon rank-sum
+        # =====================================================
+        if k == 2:
 
-        if not tax_dat_sign.empty:
-
-            sig_taxa = tax_dat_sign[taxname].tolist()
-
-            dunn_list = Parallel(n_jobs=n_jobs)(
-                delayed(dunn_one_feature)(
-                    genus,
-                    tax_dat,
-                    sam_gro,
-                    taxname,
-                    group_num
-                )
-                for genus in sig_taxa
+            statistic, pVal = stats.ranksums(
+                groups_array[0],
+                groups_array[1],
+                axis=1
             )
 
-            dunn_list = [
-                x for x in dunn_list
-                if x is not None
-            ]
+            padj = multitest.fdrcorrection(pVal)[1]
 
-            if len(dunn_list) > 0:
-                dunn_results = pd.concat(
-                    dunn_list,
-                    ignore_index=True
+            tax_dat_p = tax_dat.copy()
+            tax_dat_p["statistic"] = statistic
+            tax_dat_p["p_value"] = pVal
+            tax_dat_p["padj"] = padj
+
+            tax_dat_sign = tax_dat_p[
+                tax_dat_p["p_value"] < 0.05
+            ].reset_index(drop=True)
+
+            return tax_dat_p, tax_dat_sign, None
+
+        # =====================================================
+        # 多组：Kruskal-Wallis
+        # =====================================================
+        elif k > 2:
+
+            H_statistic, pVal = stats.kruskal(
+                *groups_array,
+                axis=1
+            )
+
+            padj = multitest.fdrcorrection(pVal)[1]
+
+            tax_dat_p = tax_dat.copy()
+            tax_dat_p["statistic"] = H_statistic
+            tax_dat_p["p_value"] = pVal
+            tax_dat_p["padj"] = padj
+
+            tax_dat_sign = tax_dat_p[
+                tax_dat_p["p_value"] < 0.05
+            ].reset_index(drop=True)
+
+            # ==========================================
+            # Dunn（仅显著行）
+            # ==========================================
+            dunn_results = None
+
+            if not tax_dat_sign.empty:
+
+                sig_taxa = tax_dat_sign[taxname].tolist()
+
+                dunn_list = Parallel(n_jobs=n_jobs)(
+                    delayed(dunn_one_feature)(
+                        genus,
+                        tax_dat,
+                        sam_gro,
+                        taxname,
+                        group_num
+                    )
+                    for genus in sig_taxa
                 )
 
-        return tax_dat_p, tax_dat_sign, dunn_results
+                dunn_list = [
+                    x for x in dunn_list
+                    if x is not None
+                ]
+
+                if len(dunn_list) > 0:
+                    dunn_results = pd.concat(
+                        dunn_list,
+                        ignore_index=True
+                    )
+
+            return tax_dat_p, tax_dat_sign, dunn_results
+    except Exception as e:
+        print(f"[diff_method.kw_wilcoxon warning] kw_wilcoxon failed for group {group_num}: {e}")
+        return None

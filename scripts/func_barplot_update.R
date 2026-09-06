@@ -18,6 +18,9 @@ library(plotly)
 library(htmlwidgets)
 })
 
+source('/root/microbiome/microbiome/metage_megahit/display_name_map.R')
+display_map <- load_display_name_map(data_dir)
+
 sample = read.table(file.path(data_dir, 'sample-metadata.tsv'), sep = '\t',
                     colClasses = 'character',header = T, check.names = F, fill = TRUE)
 k = ncol(sample) -1
@@ -94,19 +97,31 @@ for (i in 1: k){
 
         p1 <- ggplot(data = data, aes(x=variable, y=value, fill=pathway))+
           geom_bar(stat="identity", position="stack", width=0.8) +
-          theme_bw(base_family = '宋体',base_size = 12,base_line_size =0.3)+
-          theme(panel.border = element_blank(),  #去外框
-                panel.grid = element_blank(),   #去网格
-                axis.line = element_line(linetype=1, color = 'black'), #加x,y轴
-                plot.title = element_text(hjust = 0.5, size = 12), #调整标题位置
-                axis.text.x  = element_text(color = 'black', angle = 90, vjust = 0.5),
-                axis.text.y  = element_text(color = 'black'),
+          theme_bw(base_family = 'Times New Roman',base_size = 16,base_line_size =0.5)+
+          theme(panel.border = element_rect(color = 'black', fill = NA, linewidth = 0.5),
+                panel.grid = element_blank(),
+                text = element_text(family = 'Times New Roman', size = 16),
+                plot.title = element_text(hjust = 0.5, size = 22),
+                axis.text.x  = element_text(color = 'black', size = 16, angle = 90, vjust = 0.5),
+                axis.text.y  = element_text(color = 'black', size = 16),
                 axis.title.x = element_blank(),
+                axis.title.y = element_text(size = 18),
                 legend.title = element_blank(),
+                legend.text = element_text(size = 18),
+                legend.background = element_blank(),
+                legend.box.background = element_blank(),
+                legend.key = element_blank()
           )+
           labs(y='Relative abundance (%)') +
           scale_y_continuous(expand = c(0,0), labels = percent_format()) +
           scale_fill_manual(values = yanse)
+
+        if (pat != '_group.tsv' && length(display_map) > 0) {
+          x_labels <- display_map[levels(data$variable)]
+          x_labels[is.na(x_labels)] <- levels(data$variable)[is.na(x_labels)]
+          names(x_labels) <- levels(data$variable)
+          p1 <- p1 + scale_x_discrete(labels = x_labels)
+        }
 
         ggp1 <- ggplotly(p1)
 

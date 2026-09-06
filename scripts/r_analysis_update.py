@@ -23,6 +23,7 @@ from sklearn.ensemble import RandomForestClassifier
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
+from plot_style_config import apply_matplotlib_style, METAGE_PLOT_FONT
 
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
@@ -60,8 +61,7 @@ FUNC_INDEX = [
     'COG', 'MetaCyc'
 ]
 
-plt.rcParams['font.sans-serif'] = ['SimHei', 'DejaVu Sans', 'Arial Unicode MS', 'sans-serif']
-plt.rcParams['axes.unicode_minus'] = False
+apply_matplotlib_style(plt)
 
 
 # ---------------------------------------------------------------------------
@@ -212,8 +212,8 @@ def _save_boxplot(melted, title, ylabel, out_pdf, out_html, percent=False):
         whisker.set_color('black')
     for cap in bp['caps']:
         cap.set_color('black')
-    ax.set_title(title, fontsize=12)
-    ax.set_ylabel(ylabel, fontsize=11)
+    ax.set_title(title, fontsize=14)
+    ax.set_ylabel(ylabel, fontsize=13)
     ax.set_xlabel('')
     ax.grid(False)
     if percent:
@@ -457,8 +457,8 @@ def _save_stamp_plots(mat, diff, resdir, out_prefix, width=11.0, height=7.0):
     ax1.barh(y + bar_h / 2, means_g1, height=bar_h, color=CBB_PALETTE[0], edgecolor='black', label=g1)
     ax1.barh(y - bar_h / 2, means_g2, height=bar_h, color=CBB_PALETTE[1], edgecolor='black', label=g2)
     ax1.set_yticks(y)
-    ax1.set_yticklabels(features, fontsize=9)
-    ax1.set_xlabel('Mean proportion', fontsize=11)
+    ax1.set_yticklabels(features, fontsize=11)
+    ax1.set_xlabel('Mean proportion', fontsize=13)
     ax1.set_ylim(-0.5, len(features) - 0.5)
     ax1.invert_yaxis()
     ax1.legend(loc='upper center', bbox_to_anchor=(0.5, 1.05), ncol=2, frameon=False)
@@ -482,15 +482,15 @@ def _save_stamp_plots(mat, diff, resdir, out_prefix, width=11.0, height=7.0):
     ax2.axvline(0, color='black', linestyle='--', linewidth=1)
     ax2.set_yticks(y)
     ax2.set_yticklabels([])
-    ax2.set_xlabel('Difference in mean proportions', fontsize=11)
-    ax2.set_title('95% confidence intervals', fontsize=12)
+    ax2.set_xlabel('Difference in mean proportions', fontsize=13)
+    ax2.set_title('95% confidence intervals', fontsize=14)
     ax2.set_ylim(-0.5, len(features) - 0.5)
     ax2.invert_yaxis()
 
     p_text = [f"{p:.3g}" for p in plot_diff['p.value'].values]
     for j, txt in enumerate(p_text):
-        ax3.text(0.05, y[j], txt, va='center', ha='left', fontsize=9)
-    ax3.text(0.5, len(features) / 2.0, 'P-value (corrected)', rotation=90, va='center', ha='center', fontsize=10)
+        ax3.text(0.05, y[j], txt, va='center', ha='left', fontsize=11)
+    ax3.text(0.5, len(features) / 2.0, 'P-value (corrected)', rotation=90, va='center', ha='center', fontsize=12)
     ax3.set_xlim(0, 1)
     ax3.set_ylim(-0.5, len(features) - 0.5)
     ax3.invert_yaxis()
@@ -649,10 +649,11 @@ def _run_random_forest(mat, resdir, out_prefix, width=10.5, height=7.0):
     gini_vals = plot_tab['MeanDecreaseGini'].values
     ax1.barh(y, gini_vals, color='steelblue', height=0.7)
     ax1.set_yticks(y)
-    ax1.set_yticklabels(plot_features)
+    ax1.set_yticklabels(plot_features, fontsize=18)
     ax1.invert_yaxis()
-    ax1.set_xlabel('MeanDecreaseGini')
-    ax1.set_title('Random Forest feature importance')
+    ax1.set_xlabel('MeanDecreaseGini', fontsize=20)
+    ax1.set_title('Random Forest feature importance', fontsize=24)
+    ax1.tick_params(axis='x', labelsize=18)
     ax1.grid(False)
 
     groups = list(plot_tax['group'].unique())
@@ -668,8 +669,9 @@ def _run_random_forest(mat, resdir, out_prefix, width=10.5, height=7.0):
     ax2.set_yticks(y)
     ax2.set_yticklabels([])
     ax2.invert_yaxis()
-    ax2.set_xlabel('Relative abundance')
-    ax2.legend(loc='best')
+    ax2.set_xlabel('Relative abundance', fontsize=20)
+    ax2.tick_params(axis='x', labelsize=18)
+    ax2.legend(loc='best', fontsize=20, title_fontsize=22)
     ax2.grid(False)
 
     plt.tight_layout()
@@ -688,7 +690,23 @@ def _run_random_forest(mat, resdir, out_prefix, width=10.5, height=7.0):
         figp.add_trace(go.Bar(y=plot_features, x=means, orientation='h', name=g,
                                error_x=dict(type='data', array=sds, color='#939596'),
                                marker_color=YANSE[i_g % len(YANSE)]), row=1, col=2)
-    figp.update_layout(height=height * 80, width=width * 80, barmode='group', plot_bgcolor='white')
+    figp.update_layout(
+        height=height * 80,
+        width=width * 80,
+        barmode='group',
+        plot_bgcolor='white',
+        font=dict(family=METAGE_PLOT_FONT, size=18),
+        legend=dict(
+            font=dict(family=METAGE_PLOT_FONT, size=20),
+            title=dict(font=dict(family=METAGE_PLOT_FONT, size=22)),
+        ),
+    )
+    figp.update_annotations(font=dict(family=METAGE_PLOT_FONT, size=24))
+    figp.update_xaxes(
+        title_font=dict(family=METAGE_PLOT_FONT, size=20),
+        tickfont=dict(family=METAGE_PLOT_FONT, size=18),
+    )
+    figp.update_yaxes(tickfont=dict(family=METAGE_PLOT_FONT, size=18))
     figp.update_yaxes(row=1, col=2, showticklabels=False)
     figp.write_html(os.path.join(resdir, f'{out_prefix}.html'), include_plotlyjs=True)
 

@@ -14,25 +14,28 @@ library(scales)
 library(plotly)
 library(htmlwidgets)
 
+source('/root/microbiome/microbiome/metage_megahit/display_name_map.R')
+
+sample = read.table(file.path(data_dir, 'sample-metadata.tsv'), sep = '\t',
+                    colClasses = 'character',header = T, check.names = F, fill = TRUE)
+display_map <- load_display_name_map(data_dir)
+
 plot_dist = function(content, prefix){
   ggplot(data = content, aes(x=reads, y=value, group=variable, color=variable))+
     geom_line(linewidth=0.3)+
     geom_vline(xintercept = 150, linetype = "dashed", size = 0.3) +
-    theme_bw(base_family = '宋体',base_size = 12,base_line_size =0.3)+
+    theme_bw(base_family = 'Times New Roman',base_size = 16,base_line_size =0.3)+
     theme(panel.grid = element_blank(),   #去网格
-          plot.title = element_text(hjust = 0.5, size = 12), #调整标题位置
+          plot.title = element_text(hjust = 0.5, size = 20), #调整标题位置
           axis.text.x  = element_text(color = 'black', angle = 90, vjust = 0.5),
           axis.text.y  = element_text(color = 'black'),
-          legend.title = element_blank(),
+          legend.title = element_text(size = 18),
     ) +
-    ggtitle(prefix)+
     labs(x='Position along reads', y='Percentage (%)')+
     scale_y_continuous(labels = percent_format()) +
     scale_color_manual(values = c('red', 'blue', 'green', 'orange', 'gray'))
 }
 
-sample = read.table(file.path(data_dir, 'sample-metadata.tsv'), sep = '\t',
-                    colClasses = 'character',header = T, check.names = F, fill = TRUE)
 for (i in 2: ncol(sample)){
   sap_gro = na.omit(sample[sample[, i] != '', c(1,i)])
   samps = sap_gro$`sample-id`
@@ -41,13 +44,18 @@ for (i in 2: ncol(sample)){
     sam_dir = paste0(res_dir, '/', group_id, '/1-data_quality/', prefix, '/')
     if (!file.exists(sam_dir)){dir.create(sam_dir, recursive = T)}
     
+    display_prefix <- prefix
+    if (length(display_map) > 0 && prefix %in% names(display_map)) {
+      display_prefix <- display_map[prefix]
+    }
+    
     filename = paste0(prefix, '_content.tsv')
     content = read.table(file = file.path(table_dir, filename), sep = '\t',
                          header = T)
     # write.table(content, file = paste0(sam_dir, filename), sep = '\t', row.names = F)
     content = content[, -7]
     content = melt(content, id.vars = 'reads')
-    p <- plot_dist(content, prefix)
+    p <- plot_dist(content, display_prefix)
     ggp <- ggplotly(p)
     saveWidget(ggp,file = paste0(sam_dir, 'ATGC_content.html'), selfcontained = T)
     ggsave(paste0(sam_dir, 'ATGC_content.pdf'), p, width = 6, height = 5, device = cairo_pdf)

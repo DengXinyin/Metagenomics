@@ -21,6 +21,9 @@ library(scales)
 library(plotly)
 library(htmlwidgets)
 
+source('/root/microbiome/microbiome/metage_megahit/display_name_map.R')
+display_map <- load_display_name_map(data_dir)
+
 sample = read.table(file.path(data_dir, 'sample-metadata.tsv'), sep = '\t',
                     colClasses = 'character',header = T, check.names = F, fill = TRUE)
 k = ncol(sample) -1
@@ -62,6 +65,12 @@ for (i in 1: k){
         colnames(group) <- c('label', 'group')
         group$group <- factor(group$group, levels = unique(group$group))
         tree <- full_join(as_tibble(tree), group, by='label')
+        if (length(display_map) > 0) {
+          tree$display_label <- display_map[tree$label]
+          tree$display_label[is.na(tree$display_label)] <- tree$label[is.na(tree$display_label)]
+        } else {
+          tree$display_label <- tree$label
+        }
         tree_p <- as.treedata(tree)
         row_nums <- nrow(feature_s)
         
@@ -100,11 +109,15 @@ for (i in 1: k){
         
         p1 <- ggtree(tree_p) +                      
           geom_tree(size=0.5,aes(color=group)) +
-          geom_tiplab(size=3,aes(color=group,x=x*1.5), hjust = 1) +
+          geom_tiplab(size=4.4,aes(label=display_label,color=group,x=x*1.5), hjust = 1) +
           guides(color = guide_legend(override.aes = list(label = "", size = 3)))+
           scale_color_discrete(na.translate=FALSE) +
           theme(legend.title = element_blank(),
-                text = element_text(size=12, family='宋体'))
+                legend.text = element_text(size = 18),
+                axis.title = element_text(size = 18),
+                axis.text = element_text(size = 16),
+                plot.title = element_text(size = 22, hjust = 0.5),
+                text = element_text(size=16, family='Times New Roman'))
         p2 <- ggtree::facet_plot(p1, data = feature_s,
                          panel = 'Taxonomic composition', 
                          geom = geom_barh,

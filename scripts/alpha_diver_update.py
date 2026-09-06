@@ -19,6 +19,7 @@ from scipy import stats
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
+from plot_style_config import apply_matplotlib_style, METAGE_PLOT_FONT
 
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
@@ -33,8 +34,18 @@ log = logging.getLogger(__name__)
 CLASSES = ['All', 'Archaea', 'bacteria', 'Fungi', 'Virus']
 INDEX_NAMES = ['Chao1', 'ACE', 'Shannon', 'Gini_simpson']
 
-plt.rcParams['font.sans-serif'] = ['SimHei', 'DejaVu Sans', 'Arial Unicode MS', 'sans-serif']
-plt.rcParams['axes.unicode_minus'] = False
+apply_matplotlib_style(plt)
+# Alpha-diversity panels are intentionally two points smaller than the
+# workflow-wide typography defaults to leave room for multi-group brackets.
+plt.rcParams.update({
+    'font.size': 8,
+    'axes.titlesize': 18,
+    'axes.labelsize': 16,
+    'xtick.labelsize': 14,
+    'ytick.labelsize': 14,
+    'legend.fontsize': 16,
+    'legend.title_fontsize': 18,
+})
 
 
 def _read_metadata(data_dir):
@@ -202,9 +213,22 @@ def _plot_alpha(diver, index, p_anova, pairs, pvals, resdir):
             else:
                 txt = f'p={p:.3f}'
             figp.add_annotation(x=(i1 + i2) / 2.0, y=y, text=txt, showarrow=False,
-                                font=dict(size=12))
-    figp.update_layout(title=f'ANOVA: p={p_anova:.4f}', yaxis_title=index, showlegend=False,
-                       plot_bgcolor='white', xaxis=dict(showgrid=False))
+                                font=dict(family=METAGE_PLOT_FONT, size=10))
+    figp.update_layout(
+        title=dict(
+            text=f'ANOVA: p={p_anova:.4f}',
+            x=0.5,
+            font=dict(family=METAGE_PLOT_FONT, size=18),
+        ),
+        font=dict(family=METAGE_PLOT_FONT, size=10),
+        yaxis=dict(
+            title=dict(text=index, font=dict(size=16)),
+            tickfont=dict(size=14),
+        ),
+        xaxis=dict(showgrid=False, tickfont=dict(size=14)),
+        showlegend=False,
+        plot_bgcolor='white',
+    )
     figp.write_html(os.path.join(resdir, f'{index}.html'), include_plotlyjs=True)
 
 

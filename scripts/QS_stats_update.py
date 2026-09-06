@@ -40,10 +40,10 @@ def get_table(datadir, res_dir, QSdir, func_tmpdir):
         QS_indexs = ['Entry', 'Protein family']
         for QS_i in QS_indexs:
             QS_tpm = gene_QS_tpm.groupby(QS_i).sum(numeric_only=True)
-            QS_tpm_gro = QS_tpm.groupby(by=group_dic, axis=1).mean()
+            QS_tpm_gro = QS_tpm.T.groupby(by=group_dic).mean().T
             QS_tpm_rel = QS_tpm.div(QS_tpm.sum())
             QS_tpm_gro_rel = QS_tpm_gro.div(QS_tpm_gro.sum())
-            if QS_i == 'QS':
+            if QS_i == 'Entry':
                 prefix = ''
                 QS_tpm_rel.to_csv('%s/QS_diff.tsv' % tmpdir, sep='\t', index=True, encoding='utf-8-sig')
             else:

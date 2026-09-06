@@ -103,7 +103,7 @@ def get_table(anno_dir, datadir, res_dir):
         Virus_tpm = all_tpm[all_tpm['kingdom'] == 'k__Viruses']
         get_class_exp(Virus_tpm, 'Virus', samples_dir)
 
-        all_group = all_tpm.groupby(by=sam_gro_dc, axis=1).mean()
+        all_group = all_tpm.T.groupby(by=sam_gro_dc).mean().T
         all_group = pd.concat([all_tpm.iloc[:, 0: 7], all_group], axis=1)
         get_class_exp(all_group, 'All', groups_dir)
         bacteria_tpm_gro = all_group[all_group['kingdom'] == 'k__Bacteria']

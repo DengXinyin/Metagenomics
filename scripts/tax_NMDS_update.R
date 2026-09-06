@@ -18,6 +18,9 @@ library(ggforce)
 library(plotly)
 library(htmlwidgets)
 
+source('/root/microbiome/microbiome/metage_megahit/display_name_map.R')
+display_map <- load_display_name_map(data_dir)
+
 yanse <-c('#178224','#D51506','#B300B5','#0133C1','#B6BF2D',
           '#2DBFB9','#EE520A','#E90A6D','#F09013','#5FD80A',
           "#A65628","#984EA3","#F781BF","#FFFF33","#377EB8",
@@ -79,11 +82,16 @@ for (i in 1: k){
           if (p_nums > 2){
             p1 <- ggplot(data=df_points,aes(x=NMDS1,y=NMDS2,color=group))+
               geom_point(size=3)+
-              theme_bw(base_family = '宋体',base_size = 12,base_line_size =0.5)+
+              theme_bw(base_family = 'Times New Roman',base_size = 16,base_line_size =0.5)+
               theme(panel.grid = element_blank(),    #去网格
-                    plot.title = element_text(hjust = 0.5, size = 12),
-                    axis.text = element_text(color="black"),
-                    axis.title = element_text(size = 11))+
+                    plot.title = element_text(hjust = 0.5, size = 22),
+                    axis.text = element_text(color="black", size = 16),
+                    axis.title = element_text(size = 18),
+                    legend.title = element_text(size = 20),
+                    legend.text = element_text(size = 18),
+                    legend.background = element_blank(),
+                    legend.box.background = element_blank(),
+                    legend.key = element_blank())+
               geom_hline(yintercept=0,linetype='dashed',linewidth=0.8,color='grey') +
               geom_vline(xintercept=0,linetype='dashed',linewidth=0.8,color='grey') +
               ggtitle(paste0(beta,' (stress=',stress,')'))+
@@ -91,8 +99,16 @@ for (i in 1: k){
               lims(x = c(min(df_points$NMDS1)*1.2, max(df_points$NMDS1)*1.2), 
                    y = c(min(df_points$NMDS2)*1.2, max(df_points$NMDS2)*1.2))+
               guides(color = guide_legend(override.aes = list(label = "", size = 3)))
-            p2 <- p1 + geom_text_repel(label = rownames(df_points), size=3, max.overlaps = 50)
-            p3 <- p2 + ggforce::geom_mark_ellipse(aes(color=group), alpha=0.1)
+            nmds_labels <- rownames(df_points)
+            if (length(display_map) > 0) {
+              nmds_labels <- display_map[nmds_labels]
+              nmds_labels[is.na(nmds_labels)] <- rownames(df_points)[is.na(nmds_labels)]
+            }
+            p2 <- p1 + geom_text_repel(label = nmds_labels, size=4.4, max.overlaps = 50)
+            # Ellipse outlines should not add rectangular glyphs to the point legend.
+            p3 <- p2 + ggforce::geom_mark_ellipse(
+              aes(color=group), alpha=0.1, show.legend=FALSE
+            )
             ggp1 <- ggplotly(p1)
             
             resdir <- paste(res_dir, gro_num,'5-TaxAnnotation', '6.Beta_diversity_analysis', class, specie, '3.NMDS', sep = '/')

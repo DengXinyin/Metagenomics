@@ -4,7 +4,8 @@
 bwa_no / bowtie 比对优化版
 
 优化点：
-  1. 调用 bowtie_update.sh，调整并行度为 6 样本 * 12 线程 = 72 线程，避免超配
+  1. 调用 bowtie_update.sh；默认 3 个样本并行，每个管道同时使用
+     bowtie2 12 线程和 samtools sort 12 线程，总计约 72 线程，避免超配
   2. bowtie2 直接管道到 samtools sort，不写中间 .sam 文件
   3. 移除 --memfree 50G 限制
   4. subprocess.run(check=True) 失败即停
@@ -46,7 +47,7 @@ def tpm(bowtie_dir):
             count = count[count.index != '*']
             # 基因长度单位为kb
             count['RPK'] = (count['mapped_read'] * 1000) / count['length']
-            count['TPM'] = (count['RPK'] * 10e6) / count['RPK'].sum()
+            count['TPM'] = (count['RPK'] * 1e6) / count['RPK'].sum()
             count_data = count.loc[:, 'mapped_read']
             count_data = count_data.rename(prefix)
             count_ls.append(count_data)

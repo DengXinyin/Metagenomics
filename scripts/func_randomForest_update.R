@@ -104,13 +104,13 @@ for (i in 1: k){
                        width = 0.7,
                        stat = "identity",
                        fill="steelblue")+
-              theme_bw(base_family = '宋体',base_size = 15,base_line_size =0.5) +
+              theme_bw(base_family = 'Times New Roman',base_size = 17,base_line_size =0.5) +
               theme(panel.grid = element_blank(),    #去网格
                     panel.border = element_blank(),
                     axis.ticks.y = element_blank(),
                     #axis.line = element_line(linetype=1, colour = 'grey'),
                     axis.text = element_text(color="black"),
-                    axis.title = element_text(size = 14),
+                    axis.title = element_text(size = 16),
                     axis.title.y = element_blank()
               )
 
@@ -122,14 +122,14 @@ for (i in 1: k){
               geom_bar(position = position_dodge(),
                        width = 0.7,
                        stat = "identity")+
-              theme_bw(base_family = '宋体',base_size = 15,base_line_size =0.5) +
+              theme_bw(base_family = 'Times New Roman',base_size = 17,base_line_size =0.5) +
               theme(panel.grid = element_blank(),    #去网格
                     panel.border = element_blank(),
                     axis.ticks.y = element_blank(),
                     axis.text.y = element_blank(),
                     #axis.line = element_line(linetype=1, colour = 'grey'),
                     axis.text = element_text(color="black"),
-                    axis.title = element_text(size = 14),
+                    axis.title = element_text(size = 16),
                     axis.title.y = element_blank())+
               xlab('Relative abundance')+
               scale_fill_manual(values = mcolor)

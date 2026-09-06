@@ -37,6 +37,29 @@ def table_replace(docx, value, value_re):
                             run.text = run.text.replace(value, value_re)
 
 
+def replace_in_runs(paragraph, old, new):
+    """在段落的 runs 中替换文本（尽量保持原有样式）。"""
+    for run in paragraph.runs:
+        if old in run.text:
+            run.text = run.text.replace(old, new)
+
+
+def apply_display_name_map(docx, display_name_map):
+    """把 docx 中所有 internal_id 替换为 display_name。"""
+    if not display_name_map:
+        return
+    for old, new in display_name_map.items():
+        # 替换表格
+        for table in docx.tables:
+            for row in table.rows:
+                for cell in row.cells:
+                    for paragraph in cell.paragraphs:
+                        replace_in_runs(paragraph, old, new)
+        # 替换普通段落
+        for paragraph in docx.paragraphs:
+            replace_in_runs(paragraph, old, new)
+
+
 def RP_img(img_ls, tag, paragraphs):
     try:
         imgs = glob.glob(img_ls)
@@ -95,7 +118,7 @@ def _is_key_figure(img_ls, tag):
     return True
 
 
-def Micro_RP(datadir, resdir, docx_path, analyse, binning, image_mode='full'):
+def Micro_RP(datadir, resdir, docx_path, analyse, binning, image_mode='full', display_name_map=None):
     if analyse == 'yes' and binning == 'yes':
         template = os.path.join(docx_path, 'metagenome_megahit_bins.docx')
     elif analyse == 'yes' and binning == 'no':
@@ -258,9 +281,69 @@ def Micro_RP(datadir, resdir, docx_path, analyse, binning, image_mode='full'):
     for img_ls, tag in filtered_tasks:
         RP_img(img_ls, tag, paragraphs)
 
+    # 替换报告中的 internal_id 为 display_name
+    if display_name_map:
+        log.info('应用 display_name_map 到报告')
+        apply_display_name_map(micro_docx, display_name_map)
+        append_display_name_map_table(micro_docx, display_name_map)
+
     report_docx = os.path.join(resdir, 'report.docx')
     micro_docx.save(report_docx)
     log.info('保存报告: %s', report_docx)
+
+
+def append_display_name_map_table(docx, display_name_map):
+    """在报告末尾追加样本名映射表，使报告能直观反映 display_name 变更。"""
+    if not display_name_map:
+        return
+
+    # 添加标题段落
+    title = docx.add_paragraph()
+    run = title.add_run('样本名映射表 (Sample Name Mapping)')
+    run.bold = True
+    run.font.size = Pt(12)
+
+    # 添加说明段落
+    desc = docx.add_paragraph(
+        '下表列出原始样本名（internal_id）与报告中展示名（display_name）的对应关系。'
+    )
+    desc.runs[0].font.size = Pt(10)
+
+    # 添加表格（兼容不同环境内置样式）
+    table = docx.add_table(rows=1, cols=2)
+    try:
+        table.style = 'Table Grid'
+    except Exception:
+        pass
+    hdr_cells = table.rows[0].cells
+    hdr_cells[0].text = '原始样本名 (internal_id)'
+    hdr_cells[1].text = '展示样本名 (display_name)'
+
+    for iid, display in sorted(display_name_map.items()):
+        row_cells = table.add_row().cells
+        row_cells[0].text = iid
+        row_cells[1].text = display
+
+    log.info('已在报告末尾追加样本名映射表，共 %d 条映射', len(display_name_map))
+
+
+def load_display_name_map(map_path):
+    """读取 display_name_map.tsv，返回 {internal_id: display_name}。"""
+    if not map_path or not os.path.exists(map_path):
+        return {}
+    try:
+        df = pd.read_csv(map_path, sep='\t', dtype=str)
+        mapping = {}
+        for _, r in df.iterrows():
+            iid = str(r['internal_id']) if pd.notna(r['internal_id']) else ''
+            display = str(r['display_name']) if pd.notna(r['display_name']) else ''
+            if iid and display and iid != display:
+                mapping[iid] = display
+        log.info('加载 display_name_map: %d 条映射', len(mapping))
+        return mapping
+    except Exception as e:
+        log.warning('读取 display_name_map 失败: %s', e)
+        return {}
 
 
 def main():
@@ -272,6 +355,8 @@ def main():
     parser.add_argument('--micro_docx_path', type=str, default='/root/microbiome/microbiome/metage_megahit', help='the dir of micro docx templates')
     parser.add_argument('--image-mode', type=str, choices=['full', 'key', 'none'], default='full',
                         help='图片插入模式：full=全部（默认），key=只插入关键图，none=不插入结果图')
+    parser.add_argument('--display-name-map', type=str, default='',
+                        help='display_name_map.tsv 路径，用于把报告中的 internal_id 替换为 display_name')
     args = parser.parse_args()
 
     datadir = os.path.abspath(args.i_datadir)
@@ -285,8 +370,11 @@ def main():
         log.error('结果目录不存在: %s', res_dir)
         sys.exit(1)
 
+    display_name_map = load_display_name_map(args.display_name_map)
+
     try:
-        Micro_RP(datadir, res_dir, docx_path, args.analyse, args.binning, args.image_mode)
+        Micro_RP(datadir, res_dir, docx_path, args.analyse, args.binning, args.image_mode,
+                 display_name_map=display_name_map)
         log.info('开始转换 report.docx -> report.pdf')
         cmd = [
             'libreoffice7.5', '--headless', '--convert-to', 'pdf',

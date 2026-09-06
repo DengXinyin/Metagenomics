@@ -26,30 +26,30 @@ def get_table(datadir, res_dir, mobileOGdir, func_tmpdir):
         group_dic = pd.Series(sam_gro[group_num].values, index=sam_gro['sample-id']).to_dict()
         samples_ls = sam_gro.loc[:, 'sample-id'].to_list()
 
-        resdir = os.path.join(res_dir, group_num, '11-MGE')
+        resdir = os.path.join(res_dir, group_num, '12-mobileOG')
         os.makedirs(resdir, exist_ok=True)
-        tmpdir = os.path.join(func_tmpdir, group_num, 'MGE')
+        tmpdir = os.path.join(func_tmpdir, group_num, 'mobileOG')
         os.makedirs(tmpdir, exist_ok=True)
 
         gene_mobileOG_tpm_all = pd.read_csv('%s/mobileOG.tpm.csv' % mobileOGdir)
         mobileOG_selected = gene_mobileOG_tpm_all.columns[0:11].to_list()
         gene_mobileOG_tpm = gene_mobileOG_tpm_all.loc[:, mobileOG_selected + samples_ls]
         gene_mobileOG_tpm = gene_mobileOG_tpm[~(gene_mobileOG_tpm[samples_ls] == 0).all(axis=1)]
-        gene_mobileOG_tpm.to_csv('%s/gene.MGE.tpm.csv' % resdir, index=False, encoding='utf-8-sig')
+        gene_mobileOG_tpm.to_csv('%s/gene.mobileOG.tpm.csv' % resdir, index=False, encoding='utf-8-sig')
         mobileOG_indexs = ['mobileOG Entry Name', 'Major mobileOG Category']
         for mobileOG_i in mobileOG_indexs:
             mobileOG_tpm = gene_mobileOG_tpm.groupby(mobileOG_i).sum(numeric_only=True)
-            mobileOG_tpm_gro = mobileOG_tpm.groupby(by=group_dic, axis=1).mean()
+            mobileOG_tpm_gro = mobileOG_tpm.T.groupby(by=group_dic).mean().T
             mobileOG_tpm_rel = mobileOG_tpm.div(mobileOG_tpm.sum())
             mobileOG_tpm_gro_rel = mobileOG_tpm_gro.div(mobileOG_tpm_gro.sum())
-            if mobileOG_i == 'mobileOG':
+            if mobileOG_i == 'mobileOG Entry Name':
                 prefix = ''
-                mobileOG_tpm_rel.to_csv('%s/MGE_diff.tsv' % tmpdir, sep='\t', index=True, encoding='utf-8-sig')
+                mobileOG_tpm_rel.to_csv('%s/mobileOG_diff.tsv' % tmpdir, sep='\t', index=True, encoding='utf-8-sig')
             else:
                 prefix = '.Category'
-                mobileOG_tpm_rel.to_csv('%s/MGE_sam.tsv' % tmpdir, sep='\t', index=True, encoding='utf-8-sig')
-                mobileOG_tpm_gro_rel.to_csv('%s/MGE_group.tsv' % tmpdir, sep='\t', index=True, encoding='utf-8-sig')
-            with pd.ExcelWriter('%s/MGE%s.xlsx' % (resdir, prefix)) as writer:
+                mobileOG_tpm_rel.to_csv('%s/mobileOG_sam.tsv' % tmpdir, sep='\t', index=True, encoding='utf-8-sig')
+                mobileOG_tpm_gro_rel.to_csv('%s/mobileOG_group.tsv' % tmpdir, sep='\t', index=True, encoding='utf-8-sig')
+            with pd.ExcelWriter('%s/mobileOG%s.xlsx' % (resdir, prefix)) as writer:
                 mobileOG_tpm.to_excel(writer, sheet_name='samples.tpm', index=True)
                 mobileOG_tpm_gro.to_excel(writer, sheet_name='group.tpm', index=True)
                 mobileOG_tpm_rel.to_excel(writer, sheet_name='samples.relative', index=True)

@@ -105,10 +105,10 @@ for (i in 1: k){
                   axis.ticks.length=unit(0.4,"lines"), 
                   axis.ticks=element_line(color='black'),
                   axis.line=element_line(colour="black"),
-                  axis.title.x=element_text(colour='black', size=12,family='宋体',),
-                  axis.text=element_text(colour='black',size=10,family='宋体',),
+                  axis.title.x=element_text(colour='black', size=14,family='Times New Roman',),
+                  axis.text=element_text(colour='black',size=12,family='Times New Roman',),
                   legend.title=element_blank(),
-                  legend.text=element_text(size=12,colour="black",family='宋体',
+                  legend.text=element_text(size=14,colour="black",family='Times New Roman',
                                            margin=margin(r=20)),
                   legend.position="top",
                   legend.direction="horizontal",
@@ -135,13 +135,13 @@ for (i in 1: k){
                   axis.ticks.length=unit(0.4,"lines"), 
                   axis.ticks=element_line(color='black'),
                   axis.line=element_line(colour="black"),
-                  axis.title.x=element_text(colour='black', size=12,family='宋体'),
-                  axis.text=element_text(colour='black',size=10,family='宋体'),
+                  axis.title.x=element_text(colour='black', size=14,family='Times New Roman'),
+                  axis.text=element_text(colour='black',size=12,family='Times New Roman'),
                   axis.text.y=element_blank(),
                   legend.position="none",
                   axis.line.y=element_blank(),
                   axis.ticks.y=element_blank(),
-                  plot.title=element_text(size=12,colour="black",hjust=0.5)) +
+                  plot.title=element_text(size=14,colour="black",hjust=0.5)) +
             scale_x_discrete(limits=levels(diff.mean$var)) +
             coord_flip() +
             xlab("") +
@@ -162,9 +162,9 @@ for (i in 1: k){
           
           p3 <- ggplot(diff.mean,aes(var,estimate,fill=Group)) +
             geom_text(aes(y=0,x=var),label=diff.mean$p.value,
-                      hjust=0,inherit.aes=FALSE,size=4,family='宋体') +
+                      hjust=0,inherit.aes=FALSE,size=4.7,family='Times New Roman') +
             geom_text(aes(x=nrow(diff.mean)/2 +0.5,y=0.85),label="P-value (corrected)",
-                      family='宋体',srt=90,size=4) +
+                      family='Times New Roman',srt=90,size=4.7) +
             coord_flip() +
             ylim(c(0,1)) +
             theme(panel.background=element_blank(),

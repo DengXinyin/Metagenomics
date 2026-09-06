@@ -42,6 +42,11 @@ def parse_args():
         default=None,
         help="将验证结果输出到指定文件"
     )
+    parser.add_argument(
+        "--allow-extra-fastq",
+        action="store_true",
+        help="允许 FASTQ 目录包含 mapping 之外的样本（用于只处理新增样本的增量模式）"
+    )
     return parser.parse_args()
 
 
@@ -179,7 +184,8 @@ def validate(
     fastq_col: str,
     sample_col: str,
     meta_df: pd.DataFrame,
-    meta_sample_col: str
+    meta_sample_col: str,
+    allow_extra_fastq: bool = False
 ) -> Tuple[bool, List[str], List[str], List[str], List[str]]:
     """执行验证，返回 (是否通过, 缺失fastq, 多余fastq, 缺失样本, 多余样本)"""
     
@@ -201,7 +207,8 @@ def validate(
     extra_samples = [s for s in meta_samples if s not in map_samples]
     
     # 判断是否全部通过
-    all_passed = not (missing_fastqs or extra_fastqs or missing_samples or extra_samples)
+    blocking_extra_fastqs = [] if allow_extra_fastq else extra_fastqs
+    all_passed = not (missing_fastqs or blocking_extra_fastqs or missing_samples or extra_samples)
     
     return all_passed, missing_fastqs, extra_fastqs, missing_samples, extra_samples
 
@@ -215,7 +222,8 @@ def print_report(
     extra_fastqs: List[str],
     missing_samples: List[str],
     extra_samples: List[str],
-    output_file: str = None
+    output_file: str = None,
+    allow_extra_fastq: bool = False
 ):
     """打印验证报告"""
     
@@ -223,16 +231,24 @@ def print_report(
     
     if all_passed:
         lines.append("✅ All checks passed!")
+        if allow_extra_fastq and extra_fastqs:
+            lines.append(
+                f"ℹ️  增量模式：忽略 mapping 之外的历史 FASTQ 样本: {sorted(extra_fastqs)}"
+            )
     else:
         lines.append("❌ Validation failed:")
         if missing_fastqs:
             lines.append(f"  - Mapping 中这些 fastqfile 在目录中找不到匹配的 fastq: {missing_fastqs}")
-        if extra_fastqs:
+        if extra_fastqs and not allow_extra_fastq:
             lines.append(f"  - 目录中存在未在 mapping 表中定义的样本: {sorted(extra_fastqs)}")
         if missing_samples:
             lines.append(f"  - Mapping 中的 sample 未在 metadata 中找到: {missing_samples}")
         if extra_samples:
             lines.append(f"  - Metadata 中存在但不在 mapping 中的 sample: {sorted(extra_samples)}")
+        if allow_extra_fastq and extra_fastqs:
+            lines.append(
+                f"ℹ️  增量模式：忽略 mapping 之外的历史 FASTQ 样本: {sorted(extra_fastqs)}"
+            )
     
     # 输出到屏幕
     for line in lines:
@@ -271,11 +287,15 @@ def main():
     
     # 执行验证
     all_passed, missing_fastqs, extra_fastqs, missing_samples, extra_samples = validate(
-        fastq_bases, map_df, fastq_col, sample_col, meta_df, meta_sample_col
+        fastq_bases, map_df, fastq_col, sample_col, meta_df, meta_sample_col,
+        allow_extra_fastq=args.allow_extra_fastq
     )
     
     # 输出报告
-    print_report(all_passed, missing_fastqs, extra_fastqs, missing_samples, extra_samples, args.output)
+    print_report(
+        all_passed, missing_fastqs, extra_fastqs, missing_samples, extra_samples,
+        args.output, allow_extra_fastq=args.allow_extra_fastq
+    )
     
     # 耗时
     elapsed = time.time() - start_time

@@ -20,6 +20,9 @@ library(plotly)
 library(htmlwidgets)
 })
 
+source('/root/microbiome/microbiome/metage_megahit/display_name_map.R')
+display_map <- load_display_name_map(data_dir)
+
 yanse <- c('#178224','#D51506','#B300B5','#0133C1','#B6BF2D',
           '#2DBFB9','#EE520A','#E90A6D','#F09013','#5FD80A',
           "#A65628","#984EA3","#F781BF","#FFFF33","#377EB8",
@@ -88,11 +91,14 @@ for (i in 1: k){
           
           p1 <- ggplot(data=df.plot,aes(x=Axis.1,y=Axis.2,color=group))+
             geom_point(size=3)+
-            theme_bw(base_family = '宋体',base_size = 12,base_line_size =0.5)+
+            theme_bw(base_family = 'Times New Roman',base_size = 14,base_line_size =0.5)+
             theme(panel.grid = element_blank(),    #去网格
-                  plot.title = element_text(hjust = 0.5, size = 12),
+                  plot.title = element_text(hjust = 0.5, size = 14),
                   axis.text = element_text(color="black"),
-                  axis.title = element_text(size = 11))+
+                  axis.title = element_text(size = 13),
+                  legend.background = element_blank(),
+                  legend.box.background = element_blank(),
+                  legend.key = element_blank())+
             geom_hline(yintercept=0,linetype='dashed',linewidth=0.8,color='grey') +
             geom_vline(xintercept=0,linetype='dashed',linewidth=0.8,color='grey') +
             labs(x=paste0("PCoA1 (",x_label,"%)"),
@@ -103,8 +109,16 @@ for (i in 1: k){
                  y = c(min(df.plot$Axis.2)*1.2, max(df.plot$Axis.2)*1.2))+
             guides(color = guide_legend(override.aes = list(label = "", size = 3)))
           
-          p2 <- p1 + geom_text_repel(label = rownames(df.plot), size=3, max.overlaps = 50)
-          p3 <- p2 + ggforce::geom_mark_ellipse(aes(color=group), alpha=0.1)
+          pcoa_labels <- rownames(df.plot)
+          if (length(display_map) > 0) {
+            pcoa_labels <- display_map[pcoa_labels]
+            pcoa_labels[is.na(pcoa_labels)] <- rownames(df.plot)[is.na(pcoa_labels)]
+          }
+          p2 <- p1 + geom_text_repel(label = pcoa_labels, size=3.7, max.overlaps = 50)
+          # Ellipse outlines should not add rectangular glyphs to the point legend.
+          p3 <- p2 + ggforce::geom_mark_ellipse(
+            aes(color=group), alpha=0.1, show.legend=FALSE
+          )
           ggp1 <- ggplotly(p1)
           
           if (is.null(df.pcoa$values$Relative_eig)){

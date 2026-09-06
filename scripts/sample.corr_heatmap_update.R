@@ -11,6 +11,9 @@ res_dir <- args[3]
 library(corrplot)
 library(openxlsx)
 
+source('/root/microbiome/microbiome/metage_megahit/display_name_map.R')
+display_map <- load_display_name_map(data_dir)
+
 tpm <- read.csv(file.path(table_dir, 'gene_tpm.csv'), check.names = F, row.names = 1)
 sample = read.table(file.path(data_dir, 'sample-metadata.tsv'), sep = '\t',
                     header = T, check.names = F, fill = TRUE)  # 添加 fill = TRUE 参数，避免 sample-metadata.tsv 列数不齐时报错。
@@ -23,8 +26,14 @@ for (i in 2: ncol(sample)){
   
   sam_tpm <- tpm[, colnames(tpm) %in% sap_gro$`sample-id`]
   cor.r <- cor(sam_tpm,method="spearman")
+  if (length(display_map) > 0) {
+    new_labels <- display_map[colnames(cor.r)]
+    new_labels[is.na(new_labels)] <- colnames(cor.r)[is.na(new_labels)]
+    colnames(cor.r) <- new_labels
+    rownames(cor.r) <- new_labels
+  }
   col <- colorRampPalette(c('blue',"#4477AA", "#FFFFFF", "#BB4444", "red"))
-  cairo_pdf(file.path(resdir, 'sample.corr_heatmap.pdf'), width = 6, height = 6, family = '宋体')
+  cairo_pdf(file.path(resdir, 'sample.corr_heatmap.pdf'), width = 6, height = 6, family = 'Times New Roman')
   corrplot(cor.r, type="full",
            tl.col="black",
            diag=F,

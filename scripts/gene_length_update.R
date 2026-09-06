@@ -39,7 +39,7 @@ for (i in 2: ncol(sample)){
   
   p <- ggplot(plot_len, aes(length, count)) + 
     geom_col(width = 0.8) + 
-    theme_bw(base_family = '宋体',base_size = 12,base_line_size =0.3) + 
+    theme_bw(base_family = 'Times New Roman',base_size = 14,base_line_size =0.3) + 
     theme(panel.grid = element_blank()) +
     labs(x = "sequence length", y= 'Number of sequences') +
     scale_y_continuous(expand = c(0,0)) +

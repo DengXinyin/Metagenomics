@@ -60,6 +60,7 @@ def assemble_ref(cleandir, sample_id, outdir, threads=24):
     if os.path.exists(assembly_dir):
         import shutil
         shutil.rmtree(assembly_dir)
+    os.makedirs(assembly_dir, exist_ok=True)
 
     cmd = (
         'megahit -1 {r1} -2 {r2} -t {threads} -o {assembly_dir} '

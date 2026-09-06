@@ -10,6 +10,9 @@ library(reshape2)
 library(plotly)
 library(htmlwidgets)
 
+source('/root/microbiome/microbiome/metage_megahit/display_name_map.R')
+display_map <- load_display_name_map(data_dir)
+
 yanse <- c("#FF7F00","#984EA3","#4DAF4A","#E41A1C","#377EB8",
           '#00F5FF',"#FFFF33","#DA5724","#74D944","#F781BF",
           "#CE50CA","#D3D93E","#C0717C","#CBD588",
@@ -72,16 +75,25 @@ for (i in 2: ncol(sample)){
   plot_df$variable <- factor(plot_df$variable, levels = valid_samps)
   p <- ggplot(data = plot_df, aes(x=variable, y=value, group=Length, fill=Length))+
     geom_bar(stat="identity",width=0.5,position='stack')+
-    theme_bw(base_family = '宋体',base_size = 12,base_line_size =0.3)+
+    theme_bw(base_family = 'Times New Roman',base_size = 16,base_line_size =0.3)+
     theme(panel.grid = element_blank(),
-          plot.title = element_text(hjust = 0.5, size = 12),
-          axis.text.x  = element_text(color = 'black', angle = 90, vjust = 0.5),
-          axis.text.y  = element_text(color = 'black'),
+          plot.title = element_text(hjust = 0.5, size = 22),
+          axis.text.x  = element_text(color = 'black', size = 16, angle = 90, vjust = 0.5),
+          axis.text.y  = element_text(color = 'black', size = 16),
+          axis.title = element_text(size = 18),
           axis.title.x = element_blank(),
           legend.title = element_blank(),
+          legend.text = element_text(size = 18)
     )+
     labs(y = 'Count')+
     scale_fill_manual(values = yanse)
+
+  if (length(display_map) > 0) {
+    x_labels <- display_map[levels(plot_df$variable)]
+    x_labels[is.na(x_labels)] <- levels(plot_df$variable)[is.na(x_labels)]
+    names(x_labels) <- levels(plot_df$variable)
+    p <- p + scale_x_discrete(labels = x_labels)
+  }
 
   ggp <- ggplotly(p)
   saveWidget(ggp,file = paste0(gro_dir, 'contig_length.html'), selfcontained = T)

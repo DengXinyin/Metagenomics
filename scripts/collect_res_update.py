@@ -16,7 +16,8 @@ logging.basicConfig(
 log = logging.getLogger(__name__)
 
 
-def copy_dir(src, dst):
+def merge_dir(src, dst):
+    """递归合并 src 到 dst。dst 中已存在的内容保留，只新增/覆盖 src 中的内容。"""
     if not os.path.isdir(src):
         raise FileNotFoundError(f'源目录不存在: {src}')
     src = os.path.abspath(src)
@@ -24,10 +25,18 @@ def copy_dir(src, dst):
     if src == dst:
         log.info('源目录与目标目录相同，跳过复制: %s', src)
         return
-    if os.path.exists(dst):
-        shutil.rmtree(dst)
-    shutil.copytree(src, dst)
-    log.info('复制 %s -> %s', src, dst)
+    if not os.path.exists(dst):
+        shutil.copytree(src, dst)
+        log.info('复制 %s -> %s', src, dst)
+        return
+    for item in os.listdir(src):
+        s = os.path.join(src, item)
+        d = os.path.join(dst, item)
+        if os.path.isdir(s):
+            merge_dir(s, d)
+        else:
+            shutil.copy2(s, d)
+    log.info('合并 %s -> %s', src, dst)
 
 
 def main():
@@ -52,7 +61,7 @@ def main():
             continue
         seen.add(src)
         dst = os.path.join(outdir, os.path.basename(src))
-        copy_dir(src, dst)
+        merge_dir(src, dst)
 
     readme_src = os.path.join(os.path.abspath(args.readme), 'README.txt')
     readme_dst = os.path.join(outdir, 'Result', 'README.txt')

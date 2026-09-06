@@ -64,14 +64,34 @@ def tax_table(anno_dir, dbdir, bowtie, tax_anno):
         os.makedirs(tax_dir, exist_ok=True)
 
     log(f"读取基因丰度表: {gene_tpm_path}")
-    gene_tpm = pd.read_csv(gene_tpm_path, index_col=0)
-    gene_tpm = gene_tpm.reset_index().rename(columns={'index': 'GeneID'})
+    gene_tpm = pd.read_csv(gene_tpm_path, dtype={'GeneID': str})
+    if 'GeneID' not in gene_tpm.columns:
+        raise ValueError(f"gene_tpm.csv 缺少 GeneID 列: {gene_tpm_path}")
+
+    gene2tax['GeneID'] = gene2tax['GeneID'].astype(str)
+    gene_tpm['GeneID'] = gene_tpm['GeneID'].astype(str)
+    tax_ids = set(gene2tax['GeneID'])
+    tpm_ids = set(gene_tpm['GeneID'])
+    overlap_ids = tax_ids & tpm_ids
+    overlap_ratio = len(overlap_ids) / max(1, min(len(tax_ids), len(tpm_ids)))
+    log(
+        "GeneID 一致性: taxonomy=%d, abundance=%d, overlap=%d, ratio=%.2f%%"
+        % (len(tax_ids), len(tpm_ids), len(overlap_ids), overlap_ratio * 100)
+    )
+    if tax_ids and tpm_ids and (not overlap_ids or overlap_ratio < 0.01):
+        tax_example = next(iter(tax_ids), '')
+        tpm_example = next(iter(tpm_ids), '')
+        raise ValueError(
+            "taxonomy 与 gene_tpm 的 GeneID 交集异常低，可能存在字符编码或 ID 格式错误。"
+            f" taxonomy示例={tax_example!r}, abundance示例={tpm_example!r}"
+        )
 
     log("合并基因丰度与物种注释")
     all_tpm = pd.merge(left=gene2tax, right=gene_tpm, on='GeneID')
+    if all_tpm.empty and not gene2tax.empty and not gene_tpm.empty:
+        raise ValueError("物种注释与丰度表合并后为 0 行，请检查 GeneID 编码和格式。")
 
-    # 样本 TPM 列为第 8 列之后
-    sample_cols = all_tpm.columns[8:].tolist()
+    sample_cols = [c for c in gene_tpm.columns if c != 'GeneID']
 
     log("生成 All/All.taxonomy.csv 和 All/All.taxonomy.rel.csv")
     all_rel = all_tpm[sample_cols].div(all_tpm[sample_cols].sum())

@@ -16,6 +16,12 @@ library(scales)
 library(plotly)
 library(htmlwidgets)
 
+source('/root/microbiome/microbiome/metage_megahit/display_name_map.R')
+
+sample = read.table(file.path(data_dir, 'sample-metadata.tsv'), sep = '\t',
+                    colClasses = 'character', header = T, check.names = F, fill = TRUE)
+display_map <- load_display_name_map(data_dir)
+
 get_table = function(sam_dat){
   plot_dat = data.frame(sample_name = sam_dat$Sample_name,
                         Low_quality_Reads = 1 - sam_dat$Removed_low_quality_Reads/sam_dat$Raw_reads,
@@ -41,25 +47,22 @@ get_table2 <- function(sam_dat){
 plot_summary <- function(plot_dat, prefix){
   ggplot(data = plot_dat, aes(x=sample_name, y=value, group=variable, fill=variable))+
     geom_bar(stat="identity",width=0.5,position='stack')+
-    geom_text(aes(label=label), position = position_stack(vjust=0.5), family='宋体')+
+    geom_text(aes(label=label), position = position_stack(vjust=0.5), family='Times New Roman')+
     coord_polar("y", start=0)+
-    theme_bw(base_family = '宋体',base_size = 12,base_line_size =0.3)+
+    theme_bw(base_family = 'Times New Roman',base_size = 16,base_line_size =0.3)+
     theme(panel.border = element_blank(),  #去外框
           panel.grid = element_blank(),   #去网格
           axis.ticks = element_blank(),
-          plot.title = element_text(hjust = 0.5, size = 10), #调整标题位置
+          plot.title = element_text(hjust = 0.5, size = 20), #调整标题位置
           axis.text  = element_blank(),
           axis.title = element_blank(),
-          legend.title = element_blank()
-    )+
-    ggtitle(prefix)
+          legend.title = element_text(size = 18)
+    )
 }
 
 summary_dat = read.table(file.path(table_dir, 'sumary.txt'), sep = '\t',
                          header = T, check.names = F)
 summary_dat$Sample_name <- factor(summary_dat$Sample_name, levels = summary_dat$Sample_name)
-sample = read.table(file.path(data_dir, 'sample-metadata.tsv'), sep = '\t',
-                    colClasses = 'character',header = T, check.names = F, fill = TRUE)
 for (i in 2: ncol(sample)){
   sap_gro = na.omit(sample[sample[, i] != '', c(1,i)])
   samps = sap_gro$`sample-id`
@@ -69,6 +72,11 @@ for (i in 2: ncol(sample)){
     sam_dir = paste0(res_dir, '/', group_id, '/1-data_quality/', prefix, '/')
     if (!file.exists(sam_dir)){dir.create(sam_dir, recursive = T)}
     
+    display_prefix <- prefix
+    if (length(display_map) > 0 && prefix %in% names(display_map)) {
+      display_prefix <- display_map[prefix]
+    }
+    
     sam_dat = summary_dat[summary_dat$Sample_name %in% prefix, ]
     # write.table(sam_dat, file = file.path(sam_dir, 'summary.txt'), sep='\t', row.names = F)
     if (host == 'none'){
@@ -77,9 +85,7 @@ for (i in 2: ncol(sample)){
       plot_dat = get_table2(sam_dat)
     }
     
-    p <- plot_summary(plot_dat, prefix)
+    p <- plot_summary(plot_dat, display_prefix)
     ggsave(paste0(sam_dir, 'reads_quality_summary.pdf'), p, width = 6, height = 5, device = cairo_pdf)
   }
 }
-
-

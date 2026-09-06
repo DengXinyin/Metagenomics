@@ -15,6 +15,9 @@ library(d3heatmap)
 library(htmlwidgets)
 library(heatmaply)
 
+source('/root/microbiome/microbiome/metage_megahit/display_name_map.R')
+display_map <- load_display_name_map(data_dir)
+
 color <- colorRampPalette(c("blue", "white", "red"))(n = 50)
 Set <- c('#178224','#D51506','#B300B5','#0133C1','#B6BF2D',
          '#2DBFB9','#EE520A','#E90A6D','#F09013','#5FD80A',
@@ -75,25 +78,25 @@ for (i in 1: k){
           feature_s <- feature_s[, order_s]
           colnames(feature_s) <- factor(colnames(feature_s), levels = colnames(feature_s))
           nums_k <- ncol(feature_s)
-          if (nums_k > 35) {fontsize = 400/nums_k} else {fontsize = 12}
+          if (nums_k > 35) {fontsize = 400/nums_k + 4} else {fontsize = 16}
           
           ggp <-  heatmaply(feature_s,scale = 'row',show_grid  = F,
                             Rowv=T, Colv=T, dendrogram = 'both',
                             col=color, 
                             showticklabels = c(T,F),
-                            angle_col = 45,labRowSize =0.5,labColSize =0.5,
-                            famliy="宋体")
+                            angle_col = 45,labRowSize =16,labColSize =16,
+                            famliy="Times New Roman")
           saveWidget(ggp,file = paste0(resdir,'/',class, '_',specie,'_heatmap_cluster.html'), selfcontained = T)
           
           ggp2 <-  heatmaply(feature_s,scale = 'row',show_grid  = F,
                              Rowv=T, Colv=F, dendrogram = 'row',
                              col=color, 
                              showticklabels = c(T,F),
-                             angle_col = 45,labRowSize =0.5,labColSize =0.5,
-                             famliy="宋体")
+                             angle_col = 45,labRowSize =16,labColSize =16,
+                             famliy="Times New Roman")
           saveWidget(ggp2,file = paste0(resdir,'/',class, '_',specie,'_heatmap.html'), selfcontained = T)
           
-          cairo_pdf(paste0(resdir,'/',class, '_',specie,'_heatmap_cluster.pdf'),family = '宋体',width = 10,height = 10)
+          cairo_pdf(paste0(resdir,'/',class, '_',specie,'_heatmap_cluster.pdf'),family = 'Times New Roman',width = 10,height = 10)
           p <- pheatmap(feature_s,scale = 'row',
                         cluster_rows = T, cluster_cols = T,
                         color = color,
@@ -101,7 +104,7 @@ for (i in 1: k){
                         fontsize = fontsize,
           )
           dev.off()
-          cairo_pdf(paste0(resdir,'/',class, '_',specie,'_heatmap.pdf'),family = '宋体',width = 10,height = 10)
+          cairo_pdf(paste0(resdir,'/',class, '_',specie,'_heatmap.pdf'),family = 'Times New Roman',width = 10,height = 10)
           p2 <- pheatmap(feature_s,scale = 'row',
                          cluster_rows = T, cluster_cols = F,
                          color = color,
@@ -115,7 +118,7 @@ for (i in 1: k){
           feature_s <- feature_s[, order_s]
           colnames(feature_s) <- factor(colnames(feature_s), levels = colnames(feature_s))
           nums_k <- ncol(feature_s)
-          if (nums_k > 35) {fontsize = 400/nums_k} else {fontsize = 12}
+          if (nums_k > 35) {fontsize = 400/nums_k + 4} else {fontsize = 16}
           
           group <- sample[, c(1, i+1)]
           group <- na.omit(group[group[, 2] != '', ])
@@ -126,12 +129,19 @@ for (i in 1: k){
           gro_color <- Set[as.factor(group$group)]
           gro_color <- as.data.frame(gro_color)
           colnames(gro_color) <- "group"
+          if (length(display_map) > 0) {
+            orig_colnames <- as.character(colnames(feature_s))
+            new_colnames <- display_map[orig_colnames]
+            new_colnames[is.na(new_colnames)] <- orig_colnames[is.na(new_colnames)]
+            colnames(feature_s) <- new_colnames
+            rownames(group) <- new_colnames[match(rownames(group), orig_colnames)]
+          }
           ggp <-  heatmaply(feature_s,scale = 'row',show_grid  = F,
                             Rowv=T, Colv=T, dendrogram = 'both',
                             col=color, ColSideColors = gro_color,
                             showticklabels = c(T,F),
-                            angle_col = 45,labRowSize =0.5,labColSize =0.5,
-                            famliy="宋体")
+                            angle_col = 45,labRowSize =16,labColSize =16,
+                            famliy="Times New Roman")
           
           saveWidget(ggp,file = paste0(resdir,'/',class, '_',specie,'_heatmap_cluster.html'), selfcontained = T)
           
@@ -139,11 +149,11 @@ for (i in 1: k){
                              Rowv=T, Colv=F, dendrogram = 'row',
                              col=color, ColSideColors = gro_color,
                              showticklabels = c(T,F),
-                             angle_col = 45,labRowSize =0.5,labColSize =0.5,
-                             famliy="宋体")
+                             angle_col = 45,labRowSize =16,labColSize =16,
+                             famliy="Times New Roman")
           saveWidget(ggp2,file = paste0(resdir,'/',class, '_',specie,'_heatmap.html'), selfcontained = T)
           
-          cairo_pdf(paste0(resdir,'/',class, '_',specie,'_heatmap_cluster.pdf'),family = '宋体',width = 10,height = 10)
+          cairo_pdf(paste0(resdir,'/',class, '_',specie,'_heatmap_cluster.pdf'),family = 'Times New Roman',width = 10,height = 10)
           p <- pheatmap(feature_s,scale = 'row',
                         cluster_rows = T, cluster_cols = T,
                         annotation_col = group,
@@ -152,7 +162,7 @@ for (i in 1: k){
                         fontsize = fontsize,
           )
           dev.off()
-          cairo_pdf(paste0(resdir,'/',class, '_',specie,'_heatmap.pdf'),family = '宋体',width = 10,height = 10)
+          cairo_pdf(paste0(resdir,'/',class, '_',specie,'_heatmap.pdf'),family = 'Times New Roman',width = 10,height = 10)
           p2 <- pheatmap(feature_s,scale = 'row',
                          cluster_rows = T, cluster_cols = F,
                          annotation_col = group,

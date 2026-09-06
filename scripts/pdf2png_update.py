@@ -10,6 +10,11 @@ from multiprocessing import Pool, cpu_count
 
 import fitz
 
+try:
+    from PIL import Image
+except ImportError:  # Pillow 不是所有旧镜像的必选依赖
+    Image = None
+
 logging.basicConfig(
     level=logging.INFO,
     format='[%(asctime)s] %(levelname)s: %(message)s',
@@ -19,21 +24,48 @@ log = logging.getLogger(__name__)
 
 
 def pdf2png(args):
-    pic, zoom = args
+    pic, dpi = args
     try:
         pdf_doc = fitz.open(pic)
-        mat = fitz.Matrix(zoom, zoom)
-        pix = pdf_doc[0].get_pixmap(matrix=mat)
+        # PDF 的默认 CSS 分辨率为 72 dpi。直接使用 dpi 参数不仅控制像素数，
+        # 也会在支持该参数的 PyMuPDF 版本中写入 PNG 的分辨率元数据。
+        page = pdf_doc[0]
+        try:
+            pix = page.get_pixmap(dpi=dpi)
+        except (AttributeError, TypeError):
+            # 兼容旧版 PyMuPDF：用等价缩放矩阵生成约定分辨率的像素。
+            scale = float(dpi) / 72.0
+            matrix = fitz.Matrix(scale, scale)
+            if hasattr(page, 'get_pixmap'):
+                pix = page.get_pixmap(matrix=matrix)
+            else:
+                pix = page.getPixmap(matrix=matrix)
+        # 旧版 PyMuPDF 只有缩放矩阵时不会自动写 DPI 元数据，显式设置，
+        # 确保像素尺寸和文件标注都统一为 300 dpi。
+        if hasattr(pix, 'set_dpi'):
+            pix.set_dpi(int(round(dpi)), int(round(dpi)))
+        elif hasattr(pix, 'setResolution'):
+            pix.setResolution(int(round(dpi)), int(round(dpi)))
         png = os.path.splitext(pic)[0] + '.png'
-        pix.save(png)
+        if hasattr(pix, 'save'):
+            pix.save(png)
+        else:
+            pix.writePNG(png)
+        # 旧版 Pixmap.writePNG 不写入分辨率元数据，用 Pillow 补写；
+        # 即使 Pillow 不存在，像素尺寸仍按 300 dpi 生成。
+        if Image is not None:
+            with Image.open(png) as image:
+                image.save(png, dpi=(int(round(dpi)), int(round(dpi))))
         return ('ok', pic, png)
-    except fitz.fitz.EmptyFileError:
-        return ('empty', pic, None)
     except Exception as e:
+        # 不同 PyMuPDF 版本对空 PDF 的异常类位置不同，避免直接引用不存在的
+        # fitz.fitz.EmptyFileError 导致异常处理本身再次报错。
+        if e.__class__.__name__ == 'EmptyFileError':
+            return ('empty', pic, None)
         return ('error', pic, str(e))
 
 
-def changefile(path, zoom=4, workers=None):
+def changefile(path, dpi=300, workers=None):
     if workers is None:
         workers = min(8, cpu_count())
 
@@ -42,7 +74,7 @@ def changefile(path, zoom=4, workers=None):
         for file_name in filenames:
             if not file_name.lower().endswith('.pdf'):
                 continue
-            pdf_files.append((os.path.join(dirpath, file_name), zoom))
+            pdf_files.append((os.path.join(dirpath, file_name), dpi))
 
     if not pdf_files:
         log.warning('未找到 PDF 文件: %s', path)
@@ -69,7 +101,10 @@ def changefile(path, zoom=4, workers=None):
 def main():
     parser = argparse.ArgumentParser(description='Convert PDF first page to PNG (update version)')
     parser.add_argument('-resDir', '--res-dir', type=str, required=True, help='directory to recursively convert')
-    parser.add_argument('--zoom', type=int, default=4, help='render zoom factor')
+    parser.add_argument('--dpi', type=float, default=300,
+                        help='PNG 输出分辨率（默认 300 dpi）')
+    parser.add_argument('--zoom', type=float, default=None,
+                        help='兼容旧参数：缩放倍数，优先级低于 --dpi（zoom=4 约等于 288 dpi）')
     parser.add_argument('-j', '--jobs', type=int, default=None, help='number of parallel workers (default: min(8, cpu_count))')
     args = parser.parse_args()
 
@@ -79,7 +114,8 @@ def main():
         sys.exit(1)
 
     try:
-        changefile(res_dir, args.zoom, args.jobs)
+        dpi = args.dpi if args.zoom is None else args.zoom * 72.0
+        changefile(res_dir, dpi, args.jobs)
         log.info('pdf2png 完成')
     except Exception as e:
         log.error('pdf2png 失败: %s', e)

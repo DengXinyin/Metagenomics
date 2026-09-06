@@ -65,7 +65,14 @@ def do_anova(datadir, res_dir, tpmdir, pre_resdir):
                     log.warning('文件不存在，跳过: %s', tax_file)
                     continue
                 tax_dat = pd.read_excel(tax_file, sheet_name='relative')
-                res = anova(tax_dat, sam_gro, group_num)
+                if tax_dat.empty or len(tax_dat.columns) <= 1:
+                    log.warning('ANOVA 数据为空，跳过: %s %s %s', group_num, clas, specie)
+                    continue
+                try:
+                    res = anova(tax_dat, sam_gro, group_num)
+                except Exception as e:
+                    log.warning('ANOVA 分析失败，跳过: %s %s %s, error: %s', group_num, clas, specie, e)
+                    continue
                 if not res:
                     continue
                 genus_p, genus_sign_pvalue, tukey_df = res
@@ -119,7 +126,14 @@ def do_wilcoxon(datadir, tpmdir, res_dir, pre_resdir):
                     log.warning('文件不存在，跳过: %s', tax_file)
                     continue
                 tax_dat = pd.read_excel(tax_file, sheet_name='relative')
-                res = kw_wilcoxon(tax_dat, sam_gro, group_num)
+                if tax_dat.empty or len(tax_dat.columns) <= 1:
+                    log.warning('Wilcoxon 数据为空，跳过: %s %s %s', group_num, clas, specie)
+                    continue
+                try:
+                    res = kw_wilcoxon(tax_dat, sam_gro, group_num)
+                except Exception as e:
+                    log.warning('Wilcoxon 分析失败，跳过: %s %s %s, error: %s', group_num, clas, specie, e)
+                    continue
                 if not res:
                     continue
                 kww_p, kww_sign_pvalue, dunn_res = res

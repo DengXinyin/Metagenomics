@@ -29,13 +29,56 @@ def run_cmd(cmd):
     subprocess.run(cmd, shell=True, check=True)
 
 
-def ensure_header(out_file):
-    """如果 diamond 输出为空，写入表头占位，避免 pandas 解析失败。"""
-    with open(out_file, 'r') as f:
-        content = f.read()
-    if not content.strip():
-        with open(out_file, 'w') as f:
-            f.write('\t'.join(DIAMOND_COLS) + '\n')
+def check_tpm_overlap(hit_ids, tpm_ids, label):
+    hit_set = set(hit_ids.astype(str))
+    tpm_set = set(tpm_ids.astype(str))
+    overlap = hit_set & tpm_set
+    ratio = len(overlap) / max(1, len(hit_set))
+    log.info('%s 与 gene_tpm.csv 的 GeneID 交集: %d/%d (%.2f%%)',
+             label, len(overlap), len(hit_set), ratio * 100)
+    if not overlap or ratio < 0.01:
+        examples = list(hit_set - tpm_set)[:3]
+        raise ValueError(
+            '%s 与 gene_tpm.csv 的 GeneID 几乎无法匹配（交集 %.2f%%；示例: %s）。'
+            '请检查 GeneID 是否发生字符编码或格式损坏。'
+            % (label, ratio * 100, examples)
+        )
+
+
+def add_optional_taxonomy(table, gene_tax, label):
+    hit_ids = set(table['GeneID'].astype(str))
+    tax_ids = set(gene_tax['GeneID'].astype(str))
+    overlap = hit_ids & tax_ids
+    ratio = len(overlap) / max(1, len(hit_ids))
+    log.info('%s 的 taxonomy 覆盖: %d/%d (%.2f%%)',
+             label, len(overlap), len(hit_ids), ratio * 100)
+    table = pd.merge(
+        left=table, right=gene_tax, on='GeneID', how='left', validate='many_to_one'
+    )
+    table['taxonomy'] = table['taxonomy'].replace(
+        r'^\s*$', pd.NA, regex=True
+    ).fillna('unclassified')
+    return table
+
+
+def read_diamond_table(out_file):
+    """DIAMOND outfmt 6 没有表头；空文件返回具有标准列的空表。"""
+    if not os.path.exists(out_file) or os.path.getsize(out_file) == 0:
+        return pd.DataFrame(columns=DIAMOND_COLS)
+    return pd.read_csv(
+        out_file, sep='\t', header=None, names=DIAMOND_COLS,
+        dtype={'qseqid': str, 'sseqid': str}
+    )
+
+
+def write_empty_outputs(cog_dir, sample_cols):
+    columns = ['GeneID', 'taxonomy', 'COG'] + sample_cols
+    pd.DataFrame(columns=columns).to_csv(
+        os.path.join(cog_dir, 'COG.tpm.csv'), index=False, encoding='utf-8-sig'
+    )
+    pd.DataFrame(columns=sample_cols, index=pd.Index([], name='COG')).to_excel(
+        os.path.join(cog_dir, 'COG.Category.tpm.xlsx'), index=True
+    )
 
 
 def cog_diamond(dbdir, prodigal_dir, cog_dir):
@@ -46,7 +89,6 @@ def cog_diamond(dbdir, prodigal_dir, cog_dir):
 --outfmt 6 qseqid sseqid pident length mismatch gapopen qstart qend sstart send evalue bitscore
 '''.format(dbdir, prodigal_dir, out_file)
     run_cmd(cmd)
-    ensure_header(out_file)
 
 
 def get_cog_table(dbdir, cog_dir, anno_dir, bowtie):
@@ -59,17 +101,26 @@ def get_cog_table(dbdir, cog_dir, anno_dir, bowtie):
         cog_map = pd.read_csv(cog_map_path, header=None, dtype=str)
         cog_map.columns = ['protein_id', 'COG'] + ['col{}'.format(i) for i in range(2, cog_map.shape[1])]
 
-    gene_tax = pd.read_csv(os.path.join(anno_dir, 'gene.taxonomy.csv'), index_col=0)
-    gene_tax['taxonomy'] = [';'.join(str(x) for x in row) for row in gene_tax.values]
-    gene_tax = gene_tax.reset_index().rename(columns={'index': 'GeneID'})
-    gene_tax = gene_tax.loc[:, ['GeneID', 'taxonomy']]
+    gene_tax_raw = pd.read_csv(os.path.join(anno_dir, 'gene.taxonomy.csv'), dtype=str)
+    if 'GeneID' not in gene_tax_raw.columns:
+        raise ValueError('gene.taxonomy.csv 缺少 GeneID 列')
+    if gene_tax_raw['GeneID'].isna().any() or gene_tax_raw['GeneID'].duplicated().any():
+        raise ValueError('gene.taxonomy.csv 的 GeneID 含空值或重复值')
+    taxonomy_cols = [c for c in gene_tax_raw.columns if c != 'GeneID']
+    gene_tax = gene_tax_raw[['GeneID']].copy()
+    gene_tax['taxonomy'] = gene_tax_raw[taxonomy_cols].fillna('').astype(str).agg(';'.join, axis=1)
 
-    cog = pd.read_csv(os.path.join(cog_dir, 'COG_anno.txt'), sep='\t',
-                      header=None, names=DIAMOND_COLS, dtype={'qseqid': str, 'sseqid': str})
+    gene_tpm = pd.read_csv(os.path.join(bowtie, 'gene_tpm.csv'), dtype={'GeneID': str})
+    if 'GeneID' not in gene_tpm.columns:
+        raise ValueError('gene_tpm.csv 缺少 GeneID 列')
+    if gene_tpm['GeneID'].isna().any() or gene_tpm['GeneID'].duplicated().any():
+        raise ValueError('gene_tpm.csv 的 GeneID 含空值或重复值')
+    sample_cols = [c for c in gene_tpm.columns if c != 'GeneID']
+
+    cog = read_diamond_table(os.path.join(cog_dir, 'COG_anno.txt'))
     if cog.empty:
-        gene_tpm = pd.read_csv(os.path.join(bowtie, 'gene_tpm.csv'))
-        out_cols = ['GeneID', 'taxonomy', 'COG'] + list(gene_tpm.columns[1:])
-        pd.DataFrame(columns=out_cols).to_csv(os.path.join(cog_dir, 'COG.tpm.csv'), index=False, encoding='utf-8-sig')
+        log.warning('COG DIAMOND 无命中，输出带标准表头的空结果。')
+        write_empty_outputs(cog_dir, sample_cols)
         return
 
     cog = cog.loc[:, ['qseqid', 'sseqid', 'evalue']]
@@ -82,17 +133,19 @@ def get_cog_table(dbdir, cog_dir, anno_dir, bowtie):
     cog_ano = pd.merge(left=cog, right=cog_map, on='protein_id', how='left')
     cog_ano = cog_ano.loc[:, ['qseqid', 'COG']].rename(columns={'qseqid': 'GeneID'})
     cog_ano = cog_ano.dropna(subset=['COG'])
-    cog_ano = pd.merge(left=gene_tax, right=cog_ano, on='GeneID')
-
-    gene_tpm = pd.read_csv(os.path.join(bowtie, 'gene_tpm.csv'))
+    if cog_ano.empty:
+        raise ValueError(
+            'COG DIAMOND 有命中，但没有任何 subject ID 可映射到 cog2003-2014.csv；'
+            '请检查数据库与映射表版本。'
+        )
+    check_tpm_overlap(cog_ano['GeneID'], gene_tpm['GeneID'], 'COG 命中')
     gene_cog_tpm = pd.merge(left=cog_ano, right=gene_tpm, on='GeneID')
+    gene_cog_tpm = add_optional_taxonomy(gene_cog_tpm, gene_tax, 'COG TPM 结果')
+    gene_cog_tpm = gene_cog_tpm.loc[:, ['GeneID', 'taxonomy', 'COG'] + sample_cols]
     gene_cog_tpm.to_csv(os.path.join(cog_dir, 'COG.tpm.csv'), index=False, encoding='utf-8-sig')
 
-    # 生成 COG 分类汇总表
-    k = gene_cog_tpm.shape[1]
-    if k > 3:
-        cog_cat = gene_cog_tpm.iloc[:, [2] + list(range(3, k))].groupby('COG').sum()
-        cog_cat.to_excel(os.path.join(cog_dir, 'COG.Category.tpm.xlsx'), index=True)
+    cog_cat = gene_cog_tpm.groupby('COG', dropna=True)[sample_cols].sum()
+    cog_cat.to_excel(os.path.join(cog_dir, 'COG.Category.tpm.xlsx'), index=True)
 
 
 def main():

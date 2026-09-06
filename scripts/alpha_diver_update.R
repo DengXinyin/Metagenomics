@@ -18,7 +18,7 @@ stopifnot('请提供 3 个参数：data_dir taxdir res_dir' = length(args) >= 3)
 data_dir <- args[1]
 taxdir <- args[2]
 res_dir <- args[3]
-font_family <- Sys.getenv('METAGE_FONT', '宋体')
+font_family <- Sys.getenv('METAGE_FONT', 'Times New Roman')
 
 # 读入样本元数据
 sample <- read.table(

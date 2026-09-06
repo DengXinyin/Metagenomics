@@ -174,7 +174,7 @@ def QC_stats(datadir, cleandatadir, res_dir, host, host_dir):
                             'GC_content(%)']
             new = pd.DataFrame({'Sample_name': [sample]})
             total = pd.concat([new, raw, clean], axis=1)
-            df = df._append(total)
+            df = pd.concat([df, total], ignore_index=True)
     df['Raw_bases(G)'] = df['Raw_bases(G)'].apply(lambda x: round(x / 10 ** 9, 2))
     df['Removed_Low_Qualitybases(G)'] = df['Removed_Low_Qualitybases(G)'].apply(lambda x: round(x / 10 ** 9, 2))
     df.to_csv('%s/table/sumary.txt' % cleandatadir, sep='\t', index=False)
@@ -214,7 +214,7 @@ def QC_stats(datadir, cleandatadir, res_dir, host, host_dir):
                                     'GC_content(%)']
                     new = pd.DataFrame({'Sample_name': [prefix]})
                     total = pd.concat([new, de_host], axis=1)
-                    df = df._append(total)
+                    df = pd.concat([df, total], ignore_index=True)
         df['Removed_host_bases(G)'] = df['Removed_host_bases(G)'].apply(lambda x: round(x / 10 ** 9, 2))
         df_merge = pd.merge(left=pre_summary, right=df, on='Sample_name')
         df_merge.to_csv('%s/table/sumary.txt' % host_dir, sep='\t', index=False)

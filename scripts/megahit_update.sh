@@ -1,7 +1,7 @@
 #!/bin/bash
 # 20260624_update:
 #   在上一个优化版（megahit_update_V1.sh）基础上，修正并行策略：
-#   - 恢复为 6 个样本同时并行，每个样本 12 线程，与原代码一致；
+#   - 恢复为 7 个样本同时并行，每个样本 12 线程，与原代码一致；
 #   - 默认不添加 --min-count，保证输出与原代码可比；
 #   - 保留 V1 的 bug 修复：挂载点保护、tab 分隔解析、失败即停。
 #   - 删除未生效的 pigz 检测；通过管道合并 seqkit seq 与 awk，减少中间 .tmp 文件。
@@ -14,7 +14,7 @@ tmpdir=${3}
 type=${4}
 
 # 可配置参数（可通过 docker -e 传入覆盖）
-PARALLEL_J=${PARALLEL_J:-6}          # 同时运行的样本数，默认 6（与原代码一致）
+PARALLEL_J=${PARALLEL_J:-7}          # 同时运行的样本数，默认 7（与原代码一致）
 MEGAHIT_T=${MEGAHIT_T:-12}           # 每个 megahit 任务使用的线程数，默认 12（与原代码一致）
 SEQKIT_J=${SEQKIT_J:-36}             # 原代码 seqkit fx2tab 线程数，默认 36（顺序后处理时使用）
 SEQKIT_POST_J=${SEQKIT_POST_J:-2}    # 并行后处理时每个 seqkit fx2tab 使用的线程数，避免并发过多线程
@@ -47,7 +47,7 @@ fi
 
 # 运行 megahit
 # 说明：
-#   -j ${PARALLEL_J}     控制同时运行的样本数，默认 6，确保 6 样本×12 线程 = 72 线程满载
+#   -j ${PARALLEL_J}     控制同时运行的样本数，默认 7，即 7 样本×12 线程 = 84 线程（与原流程一致）
 #   -t ${MEGAHIT_T}      单个 megahit 任务线程数，默认 12
 #   默认不传入 --min-count，保证与原代码结果可比
 
@@ -59,13 +59,15 @@ parallel --verbose -j "${PARALLEL_J}" --memfree "${MEMFREE}" --xapply \
 
 # 后处理：过滤长度、重命名序列、生成长度表和统计表
 # 1. 使用管道将 seqkit seq 的输出直接传给 awk，避免生成 .tmp 中间文件
-# 2. 使用 GNU parallel 对 6 个样本的后处理并行执行，缩短整体 wall-clock
+# 2. 使用 GNU parallel 对样本的后处理并行执行，缩短整体 wall-clock
 
 postprocess() {
     set -euo pipefail
     local sample="$1"
     # 修复：先写临时文件再 mv，避免 > 截断导致读空（2026-07-05）
-    seqkit seq -m 500 "${tmpdir}/${sample}/final.contigs.fa" | \
+    # 测试环境可通过 SEQKIT_MIN_LEN 降低 min-contig-len 阈值，避免小样本数据组装出的 contigs 过短被全部过滤
+    SEQKIT_MIN_LEN=${SEQKIT_MIN_LEN:-500}
+    seqkit seq -m "${SEQKIT_MIN_LEN}" "${tmpdir}/${sample}/final.contigs.fa" | \
         awk -v sample="${sample}" '$0 ~ /^>/ {count++; $0=">seq_" sample "." count}1' \
         > "${tmpdir}/${sample}/final.contigs.tmp" && \
     mv "${tmpdir}/${sample}/final.contigs.tmp" "${tmpdir}/${sample}/final.contigs.fa"

@@ -47,6 +47,16 @@ def run_lefse(task):
     if os.path.exists(resfile):
         return '{} exists'.format(specie)
 
+    # 检查输入 TSV 是否有足够数据进行 LEfSe 分析
+    try:
+        tsv_data = pd.read_csv(tsv, sep='\t')
+        if tsv_data.shape[0] < 2 or tsv_data.shape[1] < 3:
+            log.warning('TSV 数据不足，跳过 LEfSe: %s (rows=%d, cols=%d)', specie, tsv_data.shape[0], tsv_data.shape[1])
+            return '{} skipped (insufficient data)'.format(specie)
+    except Exception as e:
+        log.warning('无法读取 TSV，跳过 LEfSe %s: %s', specie, e)
+        return '{} skipped (read error)'.format(specie)
+
     cmd1 = ['lefse-format_input.py', tsv, infile, '-c', '1', '-o', '1000000']
     cmd2 = ['run_lefse.py', infile, resfile]
 

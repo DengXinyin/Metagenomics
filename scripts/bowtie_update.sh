@@ -3,7 +3,8 @@ set -euo pipefail
 
 # 优化版 bowtie 比对流程
 # 优化点：
-#   1. parallel -j 6 + bowtie2 -p 12 = 72 线程，避免原代码 7*12=84 线程超配
+#   1. 管道中 bowtie2 与 samtools sort 同时运行；默认 3 个样本并行，
+#      即 3 × (bowtie2 12 线程 + samtools sort 12 线程) 约为 72 线程。
 #   2. bowtie2 直接管道到 samtools sort，不写中间 .sam 文件，减少磁盘 IO 和空间占用
 #   3. 移除保守的 --memfree 50G
 #   4. set -euo pipefail，失败即停
@@ -36,8 +37,9 @@ bowtie2-build --threads 72 -f "${prodigal_dir}/unique_gene.fasta" "${bowtie_dir}
 echo "[$(date '+%Y-%m-%d %H:%M:%S')] bowtie2-build 完成"
 
 # 比对并直接排序为 BAM（不写 SAM 中间文件）
-# 6 个样本并行 * 12 线程 = 72 线程
+# BOWTIE_PARALLEL_J 可通过 docker -e 覆盖；默认 3，避免管道两端同时占满 CPU。
 export BOWTIE2_INDEX="${bowtie_dir}/uniq"
+BOWTIE_PARALLEL_J=${BOWTIE_PARALLEL_J:-3}
 
 run_align() {
     local prefix=$1
@@ -53,7 +55,7 @@ run_align() {
 export -f run_align
 
 echo "[$(date '+%Y-%m-%d %H:%M:%S')] 开始 bowtie2 比对..."
-parallel -j 6 --xapply \
+parallel -j "${BOWTIE_PARALLEL_J}" --xapply \
     'run_align {1} {2} {3}' \
     :::: "${bowtie_dir}/sample.name.txt" \
     :::: "${bowtie_dir}/sample1.txt" \

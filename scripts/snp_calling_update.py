@@ -171,6 +171,8 @@ def visualize_snp_results(outdir):
     import matplotlib
     matplotlib.use('Agg')
     import matplotlib.pyplot as plt
+    from plot_style_config import apply_matplotlib_style
+    apply_matplotlib_style(plt)
     import pandas as pd
     import numpy as np
     from collections import defaultdict
@@ -220,7 +222,7 @@ def visualize_snp_results(outdir):
     # ======== 4-panel figure ========
     fig, axes = plt.subplots(2, 2, figsize=(16, 12))
     fig.suptitle('SNP Calling Summary ({} total SNPs, {} samples)'.format(
-        total_snps, len(sample_counts)), fontsize=14, fontweight='bold')
+        total_snps, len(sample_counts)), fontsize=16, fontweight='bold')
 
     # --- Panel 1: SNP count per sample ---
     ax1 = axes[0, 0]
@@ -229,12 +231,12 @@ def visualize_snp_results(outdir):
     colors1 = ['#2196F3' if c > 0 else '#BDBDBD' for c in counts]
     ax1.bar(range(len(samples)), counts, color=colors1, edgecolor='#1565C0')
     ax1.set_xticks(range(len(samples)))
-    ax1.set_xticklabels(samples, rotation=45, ha='right', fontsize=8)
+    ax1.set_xticklabels(samples, rotation=45, ha='right', fontsize=10)
     ax1.set_ylabel('SNP Count')
     ax1.set_title('SNPs per Sample')
     for i, c in enumerate(counts):
         if c > 0:
-            ax1.text(i, c + max(1, max(counts)*0.02), str(c), ha='center', fontsize=7, fontweight='bold')
+            ax1.text(i, c + max(1, max(counts)*0.02), str(c), ha='center', fontsize=9, fontweight='bold')
 
     # --- Panel 2: Allele Frequency Distribution ---
     ax2 = axes[0, 1]
@@ -246,7 +248,7 @@ def visualize_snp_results(outdir):
         ax2.set_xlabel('Alternate Allele Frequency')
         ax2.set_ylabel('Count')
         ax2.set_title('Allele Frequency Distribution')
-        ax2.legend(fontsize=7)
+        ax2.legend(fontsize=9)
 
     # --- Panel 3: Coverage Depth Distribution ---
     ax3 = axes[1, 0]
@@ -258,7 +260,7 @@ def visualize_snp_results(outdir):
         ax3.set_xlabel('Coverage Depth')
         ax3.set_ylabel('Count')
         ax3.set_title('Coverage Depth Distribution')
-        ax3.legend(fontsize=7)
+        ax3.legend(fontsize=9)
 
     # --- Panel 4: SNP density along contigs (top 5 contigs by SNP count) ---
     ax4 = axes[1, 1]
@@ -280,7 +282,7 @@ def visualize_snp_results(outdir):
         ax4.set_xlabel('Position (bp)')
         ax4.set_ylabel('SNP Count per Bin')
         ax4.set_title('SNP Density Along Top Contigs')
-        ax4.legend(fontsize=6, ncol=2)
+        ax4.legend(fontsize=8, ncol=2)
 
     plt.tight_layout()
     fig.savefig(out_fig, dpi=150, bbox_inches='tight')

@@ -16,6 +16,9 @@ library(scales)
 library(plotly)
 library(htmlwidgets)
 
+source('/root/microbiome/microbiome/metage_megahit/display_name_map.R')
+display_map <- load_display_name_map(data_dir)
+
 sample = read.table(file.path(data_dir, 'sample-metadata.tsv'), sep = '\t',
                     colClasses = 'character', header = T, check.names = F, fill = TRUE)
 k = ncol(sample) -1
@@ -96,20 +99,29 @@ for (i in 1: k){
 
           p1 <- ggplot(data = feature_s, aes(x=variable, y=value, fill=tax))+
             geom_bar(stat="identity", position="stack", width=0.8) +
-            theme_bw(base_family = '宋体',base_size = 12,base_line_size =0.3)+
+            theme_bw(base_family = 'Times New Roman',base_size = 16,base_line_size =0.3)+
             theme(panel.border = element_blank(),  #去外框
                   panel.grid = element_blank(),   #去网格
                   axis.line = element_line(linetype=1, color = 'black'), #加x,y轴
-                  plot.title = element_text(hjust = 0.5, size = 12), #调整标题位置
-                  axis.text.x  = element_text(color = 'black', angle = 90, vjust = 0.5),
-                  axis.text.y  = element_text(color = 'black'),
+                  plot.title = element_text(hjust = 0.5, size = 22), #调整标题位置
+                  axis.text.x  = element_text(color = 'black', size = 16, angle = 90, vjust = 0.5),
+                  axis.text.y  = element_text(color = 'black', size = 16),
+                  axis.title = element_text(size = 18),
                   axis.title.x = element_blank(),
                   legend.title = element_blank(),
+                  legend.text = element_text(size = 18)
             )+
             ggtitle(specie)+
             labs(y='Relative abundance (%)') +
             scale_y_continuous(expand = c(0,0), labels = percent_format()) +
             scale_fill_manual(values = yanse)
+          
+          if (type != 'Groups' && length(display_map) > 0) {
+            x_labels <- display_map[levels(feature_s$variable)]
+            x_labels[is.na(x_labels)] <- levels(feature_s$variable)[is.na(x_labels)]
+            names(x_labels) <- levels(feature_s$variable)
+            p1 <- p1 + scale_x_discrete(labels = x_labels)
+          }
           
           ggp1 <- ggplotly(p1)
           resdir <- paste(res_dir, gro_num, '5-TaxAnnotation', '3.Barplot', type, class, sep = '/')
@@ -134,9 +146,6 @@ for (i in 1: k){
     }
   }
 }
-
-
-
 
 
 

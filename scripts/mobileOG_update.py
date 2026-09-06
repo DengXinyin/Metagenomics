@@ -28,9 +28,7 @@ DIAMOND_COLS = ['qseqid', 'sseqid', 'pident', 'length', 'mismatch', 'gapopen',
 
 def ensure_header(out_file):
     """如果 diamond 输出为空，则写入表头，避免 pandas 解析失败。"""
-    with open(out_file, 'r') as f:
-        content = f.read()
-    if not content.strip():
+    if not os.path.exists(out_file) or os.path.getsize(out_file) == 0:
         with open(out_file, 'w') as f:
             f.write('\t'.join(DIAMOND_COLS) + '\n')
 
@@ -45,24 +43,107 @@ def mobileog(dbdir, prodigal_dir, mobileog_dir):
     ensure_header(out_file)
 
 
+def read_diamond_table(path):
+    """读取 DIAMOND outfmt 6；兼容空文件和仅含表头的旧结果。"""
+    if not os.path.exists(path) or os.path.getsize(path) == 0:
+        return pd.DataFrame(columns=DIAMOND_COLS)
+    table = pd.read_csv(
+        path, sep='\t', header=None, names=DIAMOND_COLS,
+        dtype={'qseqid': str, 'sseqid': str}
+    )
+    table = table.loc[table['qseqid'] != 'qseqid'].copy()
+    if not table.empty:
+        table['evalue'] = pd.to_numeric(table['evalue'], errors='raise')
+    return table
+
+
+def read_gene_taxonomy(anno_dir):
+    table = pd.read_csv('%s/gene.taxonomy.csv' % anno_dir, dtype=str)
+    if 'GeneID' not in table.columns:
+        table = table.rename(columns={table.columns[0]: 'GeneID'})
+    if table['GeneID'].isna().any() or table['GeneID'].duplicated().any():
+        raise ValueError('gene.taxonomy.csv 的 GeneID 含空值或重复值')
+    taxonomy_cols = [column for column in table.columns if column != 'GeneID']
+    table['taxonomy'] = table[taxonomy_cols].fillna('').apply(
+        lambda row: ';'.join(value for value in row.astype(str) if value), axis=1
+    )
+    return table.loc[:, ['GeneID', 'taxonomy']]
+
+
+def read_gene_tpm(bowtie):
+    table = pd.read_csv('%s/gene_tpm.csv' % bowtie, dtype={'GeneID': str})
+    if 'GeneID' not in table.columns:
+        raise ValueError('gene_tpm.csv 缺少 GeneID 字段')
+    if table['GeneID'].isna().any() or table['GeneID'].duplicated().any():
+        raise ValueError('gene_tpm.csv 的 GeneID 含空值或重复值')
+    return table, [column for column in table.columns if column != 'GeneID']
+
+
+def check_gene_id_overlap(left_ids, right_ids, left_name, right_name):
+    left_set = set(left_ids.astype(str))
+    right_set = set(right_ids.astype(str))
+    overlap = left_set & right_set
+    ratio = len(overlap) / max(1, len(left_set))
+    log.info('%s 与 %s 的 GeneID 交集: %d/%d (%.2f%%)',
+             left_name, right_name, len(overlap), len(left_set), ratio * 100)
+    if not overlap or ratio < 0.01:
+        examples = list(left_set - right_set)[:3]
+        raise ValueError(
+            '%s 与 %s 的 GeneID 几乎无法匹配（交集 %.2f%%；示例: %s）。'
+            '请检查 GeneID 是否发生字符编码或格式损坏。'
+            % (left_name, right_name, ratio * 100, examples)
+        )
+
+
+def add_optional_taxonomy(table, gene_tax, label):
+    """补充可选分类；功能基因没有 NR 分类时保留并标记为 unclassified。"""
+    hit_ids = set(table['GeneID'].astype(str))
+    tax_ids = set(gene_tax['GeneID'].astype(str))
+    overlap = hit_ids & tax_ids
+    ratio = len(overlap) / max(1, len(hit_ids))
+    log.info('%s 的 taxonomy 覆盖: %d/%d (%.2f%%)',
+             label, len(overlap), len(hit_ids), ratio * 100)
+    table = pd.merge(
+        left=table, right=gene_tax, on='GeneID', how='left', validate='many_to_one'
+    )
+    table['taxonomy'] = table['taxonomy'].replace(
+        r'^\s*$', pd.NA, regex=True
+    ).fillna('unclassified')
+    return table
+
+
+def write_empty_output(mobileog_dir, sample_cols):
+    annotation_cols = [
+        'taxonomy', 'mobileOG Entry Name', 'Best Hit ID', 'mobileOG Cluster', 'Name',
+        'Manual Annotation', 'Major mobileOG Category', 'Minor mobileOG Categories',
+        'Reference(s)', 'Evidence', 'GeneID'
+    ]
+    pd.DataFrame(columns=annotation_cols + sample_cols).to_csv(
+        '%s/mobileOG.tpm.csv' % mobileog_dir, index=False, encoding='utf-8-sig'
+    )
+
+
 def get_mobileog_table(dbdir, mobileog_dir, anno_dir, bowtie):
-    mobileog_map = pd.read_csv('%s/mobileOG/mobileOG-db-beatrix-1.6-All.csv' % dbdir, sep=',')
-    gene_tax = pd.read_csv('%s/gene.taxonomy.csv' % anno_dir, index_col=0)
-    gene_tax['taxonomy'] = [';'.join(i) for i in gene_tax.values]
-    gene_tax = gene_tax.reset_index().rename(columns={'index': 'GeneID'})
-    gene_tax = gene_tax.loc[:, ['GeneID', 'taxonomy']]
+    mobileog_map = pd.read_csv(
+        '%s/mobileOG/mobileOG-db-beatrix-1.6-All.csv' % dbdir, dtype=str
+    )
+    annotation_fields = [
+        'mobileOG Entry Name', 'Best Hit ID', 'mobileOG Cluster', 'Name',
+        'Manual Annotation', 'Major mobileOG Category', 'Minor mobileOG Categories',
+        'Reference(s)', 'Evidence'
+    ]
+    required_map = {'mobileOG fasta Header'} | set(annotation_fields)
+    if not required_map.issubset(mobileog_map.columns):
+        raise ValueError('mobileOG 映射表缺少字段: %s' %
+                         sorted(required_map - set(mobileog_map.columns)))
 
-    mobileogs = pd.read_csv('%s/mobileOG_anno.txt' % mobileog_dir, sep='\t',
-                            header=None, names=DIAMOND_COLS,
-                            dtype={'qseqid': str, 'sseqid': str})
+    gene_tax = read_gene_taxonomy(anno_dir)
+    gene_tpm, sample_cols = read_gene_tpm(bowtie)
+    mobileogs = read_diamond_table('%s/mobileOG_anno.txt' % mobileog_dir)
 
-    # 兼容 diamond 无 hit 的情况：输出只有表头的空结果
     if mobileogs.empty:
-        gene_tpm = pd.read_csv('%s/gene_tpm.csv' % bowtie)
-        output_cols = ['GeneID', 'taxonomy', 'mobileOG Entry Name', 'Best Hit ID', 'mobileOG Cluster', 'Name',
-                       'Manual Annotation', 'Major mobileOG Category', 'Minor mobileOG Categories',
-                       'Reference(s)', 'Evidence'] + list(gene_tpm.columns[1:])
-        pd.DataFrame(columns=output_cols).to_csv('%s/mobileOG.tpm.csv' % mobileog_dir, index=False, encoding='utf-8-sig')
+        log.info('mobileOG DIAMOND 无命中，生成结构完整的空结果')
+        write_empty_output(mobileog_dir, sample_cols)
         return
 
     mobileogs = mobileogs.loc[:, ['qseqid', 'sseqid', 'evalue']]
@@ -71,14 +152,25 @@ def get_mobileog_table(dbdir, mobileog_dir, anno_dir, bowtie):
         left=mobileogs, right=mobileog_map,
         left_on='sseqid', right_on='mobileOG fasta Header'
     )
-    mobileog_ano = mobileog_ano.loc[:, ['qseqid', 'mobileOG Entry Name', 'Best Hit ID', 'mobileOG Cluster', 'Name',
-                                          'Manual Annotation', 'Major mobileOG Category', 'Minor mobileOG Categories',
-                                          'Reference(s)', 'Evidence']]
+    mapped_queries = mobileog_ano['qseqid'].nunique()
+    log.info('mobileOG 数据库映射: %d/%d 个最佳命中', mapped_queries,
+             mobileogs['qseqid'].nunique())
+    if mobileog_ano.empty:
+        raise ValueError(
+            'mobileOG 有 DIAMOND 命中，但 sseqid 无法映射到 mobileOG 数据库说明表；'
+            '请检查数据库与映射表版本。'
+        )
+    mobileog_ano = mobileog_ano.loc[:, ['qseqid'] + annotation_fields]
     mobileog_ano = mobileog_ano.rename(columns={'qseqid': 'GeneID'})
-    mobileog_ano = pd.merge(left=gene_tax, right=mobileog_ano, on='GeneID')
-
-    gene_tpm = pd.read_csv('%s/gene_tpm.csv' % bowtie)
+    check_gene_id_overlap(
+        mobileog_ano['GeneID'], gene_tpm['GeneID'], 'mobileOG 命中', 'gene_tpm.csv'
+    )
     gene_mobileog_tpm = pd.merge(left=mobileog_ano, right=gene_tpm, on='GeneID')
+    gene_mobileog_tpm = add_optional_taxonomy(
+        gene_mobileog_tpm, gene_tax, 'mobileOG TPM 结果'
+    )
+    output_cols = ['taxonomy'] + annotation_fields + ['GeneID'] + sample_cols
+    gene_mobileog_tpm = gene_mobileog_tpm.loc[:, output_cols]
     gene_mobileog_tpm.to_csv('%s/mobileOG.tpm.csv' % mobileog_dir, index=False, encoding='utf-8-sig')
 
 

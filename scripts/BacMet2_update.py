@@ -39,9 +39,7 @@ DIAMOND_COLS = ['qseqid', 'sseqid', 'pident', 'length', 'mismatch', 'gapopen',
 
 def ensure_header(out_file):
     """如果 diamond 输出为空，则写入表头，避免 pandas 解析失败。"""
-    with open(out_file, 'r') as f:
-        content = f.read()
-    if not content.strip():
+    if not os.path.exists(out_file) or os.path.getsize(out_file) == 0:
         with open(out_file, 'w') as f:
             f.write('\t'.join(DIAMOND_COLS) + '\n')
 
@@ -56,34 +54,129 @@ def bacmet2(dbdir, prodigal_dir, bacmet2_dir):
     ensure_header(out_file)
 
 
+def read_diamond_table(path):
+    if not os.path.exists(path) or os.path.getsize(path) == 0:
+        return pd.DataFrame(columns=DIAMOND_COLS)
+    table = pd.read_csv(
+        path, sep='\t', header=None, names=DIAMOND_COLS,
+        dtype={'qseqid': str, 'sseqid': str}
+    )
+    table = table.loc[table['qseqid'] != 'qseqid'].copy()
+    if not table.empty:
+        table['evalue'] = pd.to_numeric(table['evalue'], errors='raise')
+    return table
+
+
+def read_gene_taxonomy(anno_dir):
+    table = pd.read_csv('%s/gene.taxonomy.csv' % anno_dir, dtype=str)
+    if 'GeneID' not in table.columns:
+        table = table.rename(columns={table.columns[0]: 'GeneID'})
+    if table['GeneID'].isna().any() or table['GeneID'].duplicated().any():
+        raise ValueError('gene.taxonomy.csv 的 GeneID 含空值或重复值')
+    taxonomy_cols = [column for column in table.columns if column != 'GeneID']
+    table['taxonomy'] = table[taxonomy_cols].fillna('').apply(
+        lambda row: ';'.join(value for value in row.astype(str) if value), axis=1
+    )
+    return table.loc[:, ['GeneID', 'taxonomy']]
+
+
+def read_gene_tpm(bowtie):
+    table = pd.read_csv('%s/gene_tpm.csv' % bowtie, dtype={'GeneID': str})
+    if 'GeneID' not in table.columns:
+        raise ValueError('gene_tpm.csv 缺少 GeneID 字段')
+    if table['GeneID'].isna().any() or table['GeneID'].duplicated().any():
+        raise ValueError('gene_tpm.csv 的 GeneID 含空值或重复值')
+    return table, [column for column in table.columns if column != 'GeneID']
+
+
+def check_gene_id_overlap(left_ids, right_ids, left_name, right_name):
+    left_set = set(left_ids.astype(str))
+    right_set = set(right_ids.astype(str))
+    overlap = left_set & right_set
+    ratio = len(overlap) / max(1, len(left_set))
+    log.info('%s 与 %s 的 GeneID 交集: %d/%d (%.2f%%)',
+             left_name, right_name, len(overlap), len(left_set), ratio * 100)
+    if not overlap or ratio < 0.01:
+        examples = list(left_set - right_set)[:3]
+        raise ValueError(
+            '%s 与 %s 的 GeneID 几乎无法匹配（交集 %.2f%%；示例: %s）。'
+            '请检查 GeneID 是否发生字符编码或格式损坏。'
+            % (left_name, right_name, ratio * 100, examples)
+        )
+
+
+def add_optional_taxonomy(table, gene_tax, label):
+    """补充可选分类；功能基因没有 NR 分类时保留并标记为 unclassified。"""
+    hit_ids = set(table['GeneID'].astype(str))
+    tax_ids = set(gene_tax['GeneID'].astype(str))
+    overlap = hit_ids & tax_ids
+    ratio = len(overlap) / max(1, len(hit_ids))
+    log.info('%s 的 taxonomy 覆盖: %d/%d (%.2f%%)',
+             label, len(overlap), len(hit_ids), ratio * 100)
+    table = pd.merge(
+        left=table, right=gene_tax, on='GeneID', how='left', validate='many_to_one'
+    )
+    table['taxonomy'] = table['taxonomy'].replace(
+        r'^\s*$', pd.NA, regex=True
+    ).fillna('unclassified')
+    return table
+
+
+def write_empty_output(bacmet2_dir, sample_cols):
+    annotation_cols = [
+        'taxonomy', 'Gene_name', 'Accession/GenBank_ID', 'Compound',
+        'Source', 'NCBI_annotation', 'GeneID'
+    ]
+    pd.DataFrame(columns=annotation_cols + sample_cols).to_csv(
+        '%s/BacMet2.tpm.csv' % bacmet2_dir, index=False, encoding='utf-8-sig'
+    )
+
+
 def get_bacmet2_table(dbdir, bacmet2_dir, anno_dir, bowtie):
-    bacmet2_map = pd.read_csv('%s/BacMet/BacMet2_all.mapping.txt' % dbdir, sep='\t')
-    gene_tax = pd.read_csv('%s/gene.taxonomy.csv' % anno_dir, index_col=0)
-    gene_tax['taxonomy'] = [';'.join(i) for i in gene_tax.values]
-    gene_tax = gene_tax.reset_index().rename(columns={'index': 'GeneID'})
-    gene_tax = gene_tax.loc[:, ['GeneID', 'taxonomy']]
+    bacmet2_map = pd.read_csv(
+        '%s/BacMet/BacMet2_all.mapping.txt' % dbdir, sep='\t', dtype=str
+    )
+    annotation_fields = [
+        'Gene_name', 'Accession/GenBank_ID', 'Compound', 'Source', 'NCBI_annotation'
+    ]
+    required_map = {'ID'} | set(annotation_fields)
+    if not required_map.issubset(bacmet2_map.columns):
+        raise ValueError('BacMet2 映射表缺少字段: %s' %
+                         sorted(required_map - set(bacmet2_map.columns)))
+    bacmet2_map['ID'] = bacmet2_map['ID'].astype(str).str.strip()
 
-    bacmet2 = pd.read_csv('%s/BacMet_anno.txt' % bacmet2_dir, sep='\t',
-                          header=None, names=DIAMOND_COLS,
-                          dtype={'qseqid': str, 'sseqid': str})
+    gene_tax = read_gene_taxonomy(anno_dir)
+    gene_tpm, sample_cols = read_gene_tpm(bowtie)
+    bacmet2 = read_diamond_table('%s/BacMet_anno.txt' % bacmet2_dir)
 
-    # 兼容 diamond 无 hit 的情况：输出只有表头的空结果
     if bacmet2.empty:
-        gene_tpm = pd.read_csv('%s/gene_tpm.csv' % bowtie)
-        output_cols = ['GeneID', 'taxonomy', 'Gene_name', 'Accession/GenBank_ID', 'Compound', 'Source', 'NCBI_annotation'] + list(gene_tpm.columns[1:])
-        pd.DataFrame(columns=output_cols).to_csv('%s/BacMet2.tpm.csv' % bacmet2_dir, index=False, encoding='utf-8-sig')
+        log.info('BacMet2 DIAMOND 无命中，生成结构完整的空结果')
+        write_empty_output(bacmet2_dir, sample_cols)
         return
 
     bacmet2 = bacmet2.loc[:, ['qseqid', 'sseqid', 'evalue']]
     bacmet2 = bacmet2.loc[bacmet2.groupby('qseqid')['evalue'].idxmin()]
     bacmet2['ID'] = bacmet2['sseqid'].apply(extract_id)
     bacmet2_ano = pd.merge(left=bacmet2, right=bacmet2_map, left_on='ID', right_on='ID')
-    bacmet2_ano = bacmet2_ano.loc[:, ['qseqid', 'Gene_name', 'Accession/GenBank_ID', 'Compound', 'Source', 'NCBI_annotation']]
+    mapped_queries = bacmet2_ano['qseqid'].nunique()
+    log.info('BacMet2 数据库映射: %d/%d 个最佳命中', mapped_queries,
+             bacmet2['qseqid'].nunique())
+    if bacmet2_ano.empty:
+        raise ValueError(
+            'BacMet2 有 DIAMOND 命中，但 sseqid 无法映射到 BacMet2_all.mapping.txt；'
+            '请检查数据库与映射表版本。'
+        )
+    bacmet2_ano = bacmet2_ano.loc[:, ['qseqid'] + annotation_fields]
     bacmet2_ano = bacmet2_ano.rename(columns={'qseqid': 'GeneID'})
-    bacmet2_ano = pd.merge(left=gene_tax, right=bacmet2_ano, on='GeneID')
-
-    gene_tpm = pd.read_csv('%s/gene_tpm.csv' % bowtie)
+    check_gene_id_overlap(
+        bacmet2_ano['GeneID'], gene_tpm['GeneID'], 'BacMet2 命中', 'gene_tpm.csv'
+    )
     gene_bacmet2_tpm = pd.merge(left=bacmet2_ano, right=gene_tpm, on='GeneID')
+    gene_bacmet2_tpm = add_optional_taxonomy(
+        gene_bacmet2_tpm, gene_tax, 'BacMet2 TPM 结果'
+    )
+    output_cols = ['taxonomy'] + annotation_fields + ['GeneID'] + sample_cols
+    gene_bacmet2_tpm = gene_bacmet2_tpm.loc[:, output_cols]
     gene_bacmet2_tpm.to_csv('%s/BacMet2.tpm.csv' % bacmet2_dir, index=False, encoding='utf-8-sig')
 
 

@@ -99,18 +99,22 @@ if ! awk 'NR!=1 {print $2}' "${datadir}/sample.txt" | \
     exit 1
 fi
 
-# 清理中间文件
-# 去宿主产生的 *_dehost_*.fastq.gz 是中间文件，始终删除
+# 清理中间文件并准备下游输入
+# 1. 删除去宿主过程中产生的中间 *_dehost_*.fastq.gz
 rm -f ${host_dir}/*dehost*.fastq.gz
 
-# 当 KEEP_CLEAN_READS=1 时（如下游需要 kraken2），保留最终 clean reads *_rm_*.fastq.gz
-# 否则删除以节省空间
-if [ "${KEEP_CLEAN_READS:-0}" = "1" ]; then
-    echo '[INFO] KEEP_CLEAN_READS=1，保留最终 clean reads (*_rm_*.fastq.gz) 供 kraken2 使用'
-    rm -f ${cleandatadir}/*clean*.fastq.gz
-else
-    rm -f ${cleandatadir}/*clean*.fastq.gz
-    rm -f ${cleandatadir}/*rm*.fastq.gz
-fi
+# 2. 为下游 megahit/bwa 复制去宿主后的最终 reads 到 host_dir/，并命名为 *_clean_*.fastq.gz
+#    下游 megahit_update.sh / bowtie_update.sh 在 host!=none 时会从 host_dir 读取 *_clean_*.fastq.gz
+#    kraken2_anno_update.py 优先从 cleandatadir 读取 *_rm_*.fastq.gz，因此 cleandata/ 下的 *_rm_*.fastq.gz 保留
+for sample in $(awk 'NR!=1 {print $2}' "${datadir}/sample.txt"); do
+    if [ -f "${cleandatadir}/${sample}_rm_1.fastq.gz" ]; then
+        cp "${cleandatadir}/${sample}_rm_1.fastq.gz" "${host_dir}/${sample}_clean_1.fastq.gz"
+        cp "${cleandatadir}/${sample}_rm_2.fastq.gz" "${host_dir}/${sample}_clean_2.fastq.gz"
+    fi
+done
+
+# 3. 删除 cleandata/ 下含宿主的原始 *_clean_*.fastq.gz 以节省空间
+#    去宿主后的最终 reads 已以 *_rm_*.fastq.gz 保留在 cleandata/，以 *_clean_*.fastq.gz 复制到 host_dir/
+rm -f ${cleandatadir}/*clean*.fastq.gz
 
 echo '------------dehost finish!------------'

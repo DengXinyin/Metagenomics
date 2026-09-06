@@ -43,7 +43,7 @@ def _format_xlsx(args):
         return ('error', file_dir, str(e))
 
 
-def xlsx_trans(resdir, font_name='宋体', workers=None):
+def xlsx_trans(resdir, font_name='Times New Roman', workers=None):
     if workers is None:
         workers = min(8, cpu_count())
 
@@ -76,7 +76,7 @@ def xlsx_trans(resdir, font_name='宋体', workers=None):
 def main():
     parser = argparse.ArgumentParser(description='Format xlsx files (update version)')
     parser.add_argument('--res', type=str, default='Result', help='the dir of res')
-    parser.add_argument('--font', type=str, default=os.environ.get('METAGE_FONT', '宋体'), help='font name')
+    parser.add_argument('--font', type=str, default=os.environ.get('METAGE_FONT', 'Times New Roman'), help='font name')
     parser.add_argument('-j', '--jobs', type=int, default=None, help='number of parallel workers (default: min(8, cpu_count))')
     args = parser.parse_args()
 
