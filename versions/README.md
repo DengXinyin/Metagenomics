@@ -9,3 +9,6 @@ updated in place.
 - `v2.88.3`: scripts at or before 2026-08-30; WDL from the v2.88.3 node1 bundle.
 - `v2.88.4`: current scripts, including the `anno_cumulative`/incremental merge
   fixes and Kraken2 merge support; WDL from the v2.88.4 node1 bundle.
+- `v2.88.4.1`: complete v2.88.4 script snapshot plus the v2.88.4.1 standard
+  and dehost WDL files; adds parent-workflow UUID resolution across the
+  v2.88.4/v2.88.4.1 standard and dehost Cromwell roots.
